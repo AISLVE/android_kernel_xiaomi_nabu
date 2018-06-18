@@ -49,11 +49,11 @@ module_param(input_boost_ms, uint, 0644);
 static unsigned int powerkey_input_boost_ms = 400;
 module_param(powerkey_input_boost_ms, uint, 0644);
 
-static unsigned int sched_boost_on_input;
-module_param(sched_boost_on_input, uint, 0644);
-
-static bool sched_boost_on_powerkey_input = true;
-module_param(sched_boost_on_powerkey_input, bool, 0644);
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+static int dynamic_stune_boost=30;
+module_param(dynamic_stune_boost, uint, 0644);
+static bool stune_boost_active;
+#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 static bool sched_boost_active;
 
@@ -163,58 +163,12 @@ module_param_cb(powerkey_input_boost_freq, &param_ops_input_boost_freq, NULL, 06
 static int boost_adjust_notify(struct notifier_block *nb, unsigned long val,
 				void *data)
 {
-	struct cpufreq_policy *policy = data;
-	unsigned int cpu = policy->cpu;
-	struct cpu_sync *s = &per_cpu(sync_info, cpu);
-	unsigned int ib_min = s->input_boost_min;
-
-	switch (val) {
-	case CPUFREQ_ADJUST:
-		if (!ib_min)
-			break;
-
-		pr_debug("CPU%u policy min before boost: %u kHz\n",
-			 cpu, policy->min);
-		pr_debug("CPU%u boost min: %u kHz\n", cpu, ib_min);
-
-		cpufreq_verify_within_limits(policy, ib_min, UINT_MAX);
-
-		pr_debug("CPU%u policy min after boost: %u kHz\n",
-			 cpu, policy->min);
-		break;
+	/* Reset dynamic stune boost value to the default value */
+	if (stune_boost_active) {
+		reset_stune_boost("top-app");
+		stune_boost_active = false;
 	}
-
-	return NOTIFY_OK;
-}
-
-static struct notifier_block boost_adjust_nb = {
-	.notifier_call = boost_adjust_notify,
-};
-
-static void update_policy_online(void)
-{
-	unsigned int i;
-
-	/* Re-evaluate policy to trigger adjust notifier for online CPUs */
-	get_online_cpus();
-	for_each_online_cpu(i) {
-		pr_debug("Updating policy for CPU%d\n", i);
-		cpufreq_update_policy(i);
-	}
-	put_online_cpus();
-}
-
-static void do_input_boost_rem(struct work_struct *work)
-{
-	unsigned int i, ret;
-	struct cpu_sync *i_sync_info;
-
-	/* Reset the input_boost_min for all CPUs in the system */
-	pr_debug("Resetting input boost min for all CPUs\n");
-	for_each_possible_cpu(i) {
-		i_sync_info = &per_cpu(sync_info, i);
-		i_sync_info->input_boost_min = 0;
-	}
+#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	/* Update policies for all online CPUs */
 	update_policy_online();
@@ -227,16 +181,26 @@ static void do_input_boost_rem(struct work_struct *work)
 	}
 }
 
-static void do_input_boost(struct work_struct *work)
+static struct notifier_block boost_adjust_nb = {
+	.notifier_call = boost_adjust_notify,
+};
+
+static void update_policy_online(void)
 {
-	unsigned int i, ret;
-	struct cpu_sync *i_sync_info;
+	unsigned int i;
 
 	cancel_delayed_work_sync(&input_boost_rem);
 	if (sched_boost_active) {
 		sched_set_boost(0);
 		sched_boost_active = false;
 	}
+
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	if (stune_boost_active) {
+		reset_stune_boost("top-app");
+		stune_boost_active = false;
+	}
+#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	/* Set the input_boost_min for all CPUs in the system */
 	pr_debug("Setting input boost min for all CPUs\n");
@@ -248,14 +212,18 @@ static void do_input_boost(struct work_struct *work)
 	/* Update policies for all online CPUs */
 	update_policy_online();
 
-	/* Enable scheduler boost to migrate tasks to big cluster */
-	if (sched_boost_on_input > 0) {
-		ret = sched_set_boost(sched_boost_on_input);
-		if (ret)
-			pr_err("cpu-boost: sched boost enable failed\n");
-		else
-			sched_boost_active = true;
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	if (stune_boost_active) {
+		reset_stune_boost("top-app", boost_slot);
+		stune_boost_active = false;
 	}
+
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	/* Set dynamic stune boost value */
+	ret = do_stune_boost("top-app", dynamic_stune_boost);
+	if (!ret)
+		stune_boost_active = true;
+#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(cpu_boost_wq, &input_boost_rem,
 					msecs_to_jiffies(input_boost_ms));
@@ -279,17 +247,12 @@ static void do_powerkey_input_boost(struct work_struct *work)
 		i_sync_info->input_boost_min = i_sync_info->powerkey_input_boost_freq;
 	}
 
-	/* Update policies for all online CPUs */
-	update_policy_online();
-
-	/* Enable scheduler boost to migrate tasks to big cluster */
-	if (sched_boost_on_powerkey_input) {
-		ret = sched_set_boost(1);
-		if (ret)
-			pr_err("cpu-boost: HMP boost enable failed\n");
-		else
-			sched_boost_active = true;
-	}
+#ifdef CONFIG_DYNAMIC_STUNE_BOOST
+	/* Set dynamic stune boost value */
+	ret = do_stune_boost("top-app", dynamic_stune_boost);
+	if (!ret)
+		stune_boost_active = true;
+#endif /* CONFIG_DYNAMIC_STUNE_BOOST */
 
 	queue_delayed_work(cpu_boost_wq, &input_boost_rem,
 					msecs_to_jiffies(powerkey_input_boost_ms));
