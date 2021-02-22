@@ -1126,8 +1126,6 @@ struct ufs_hba {
 		atomic_t count;
 		bool active;
 	} pm_qos;
-
-	bool wb_enabled;
 };
 
 static inline void ufshcd_mark_shutdown_ongoing(struct ufs_hba *hba)
