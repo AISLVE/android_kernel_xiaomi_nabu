@@ -1,14 +1,7 @@
-/* Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+/* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef _A6XX_REG_H
@@ -398,6 +391,40 @@
 #define A6XX_RBBM_PERFCTR_RBBM_SEL_2             0x509
 #define A6XX_RBBM_PERFCTR_RBBM_SEL_3             0x50A
 #define A6XX_RBBM_PERFCTR_GPU_BUSY_MASKED        0x50B
+#define A6XX_RBBM_PERFCTR_SRAM_INIT_CMD          0x50e
+#define A6XX_RBBM_PERFCTR_SRAM_INIT_STATUS       0x50f
+#define A6XX_RBBM_PERFCTR_MHUB_0_LO              0x512
+#define A6XX_RBBM_PERFCTR_MHUB_0_HI              0x513
+#define A6XX_RBBM_PERFCTR_MHUB_1_LO              0x514
+#define A6XX_RBBM_PERFCTR_MHUB_1_HI              0x515
+#define A6XX_RBBM_PERFCTR_MHUB_2_LO              0x516
+#define A6XX_RBBM_PERFCTR_MHUB_2_HI              0x517
+#define A6XX_RBBM_PERFCTR_MHUB_3_LO              0x518
+#define A6XX_RBBM_PERFCTR_MHUB_3_HI              0x519
+#define A6XX_RBBM_PERFCTR_FCHE_0_LO              0x51A
+#define A6XX_RBBM_PERFCTR_FCHE_0_HI              0x51B
+#define A6XX_RBBM_PERFCTR_FCHE_1_LO              0x51C
+#define A6XX_RBBM_PERFCTR_FCHE_1_HI              0x51D
+#define A6XX_RBBM_PERFCTR_FCHE_2_LO              0x51E
+#define A6XX_RBBM_PERFCTR_FCHE_2_HI              0x51F
+#define A6XX_RBBM_PERFCTR_FCHE_3_LO              0x520
+#define A6XX_RBBM_PERFCTR_FCHE_3_HI              0x521
+#define A6XX_RBBM_PERFCTR_GLC_0_LO               0x522
+#define A6XX_RBBM_PERFCTR_GLC_0_HI               0x523
+#define A6XX_RBBM_PERFCTR_GLC_1_LO               0x524
+#define A6XX_RBBM_PERFCTR_GLC_1_HI               0x525
+#define A6XX_RBBM_PERFCTR_GLC_2_LO               0x526
+#define A6XX_RBBM_PERFCTR_GLC_2_HI               0x527
+#define A6XX_RBBM_PERFCTR_GLC_3_LO               0x528
+#define A6XX_RBBM_PERFCTR_GLC_3_HI               0x529
+#define A6XX_RBBM_PERFCTR_GLC_4_LO               0x52A
+#define A6XX_RBBM_PERFCTR_GLC_4_HI               0x52B
+#define A6XX_RBBM_PERFCTR_GLC_5_LO               0x52C
+#define A6XX_RBBM_PERFCTR_GLC_5_HI               0x52D
+#define A6XX_RBBM_PERFCTR_GLC_6_LO               0x52E
+#define A6XX_RBBM_PERFCTR_GLC_6_HI               0x52F
+#define A6XX_RBBM_PERFCTR_GLC_7_LO               0x530
+#define A6XX_RBBM_PERFCTR_GLC_7_HI               0x531
 
 #define A6XX_RBBM_ISDB_CNT                       0x533
 #define A6XX_RBBM_NC_MODE_CNTL                   0x534
