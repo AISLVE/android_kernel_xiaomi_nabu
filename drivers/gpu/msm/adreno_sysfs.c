@@ -1,13 +1,7 @@
-/* Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) 2014-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/sysfs.h>
@@ -370,161 +364,28 @@ static int _acd_store(struct adreno_device *adreno_dev, unsigned int val)
 	return gmu_core_acd_set(device, val);
 }
 
-static unsigned int _acd_version_show(struct adreno_device *adreno_dev)
+static unsigned int _perfcounter_show(struct adreno_device *adreno_dev)
 {
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
-		return 0;
-
-	cmd = &gmu->hfi.acd_tbl_cmd;
-	return cmd->version;
+	return adreno_dev->perfcounter;
 }
 
-static int _acd_version_store(struct adreno_device *adreno_dev,
+static int _perfcounter_store(struct adreno_device *adreno_dev,
 		unsigned int val)
 {
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
 
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
-		return -EINVAL;
-
-	cmd = &gmu->hfi.acd_tbl_cmd;
-	cmd->version = val;
-	return 0;
-}
-
-static unsigned int _acd_stride_show(struct adreno_device *adreno_dev)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
+	if (adreno_dev->perfcounter == val)
 		return 0;
 
-	cmd = &gmu->hfi.acd_tbl_cmd;
-	return cmd->stride;
-}
+	mutex_lock(&device->mutex);
 
-static int _acd_stride_store(struct adreno_device *adreno_dev, unsigned int val)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
+	/* Power down the GPU before changing the state */
+	kgsl_pwrctrl_change_state(device, KGSL_STATE_SUSPEND);
+	adreno_dev->perfcounter = val;
+	kgsl_pwrctrl_change_state(device, KGSL_STATE_SLUMBER);
 
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
-		return -EINVAL;
+	mutex_unlock(&device->mutex);
 
-	if (!val || val > MAX_ACD_STRIDE)
-		return -EINVAL;
-
-	cmd = &gmu->hfi.acd_tbl_cmd;
-	cmd->stride = val;
-	return 0;
-}
-
-static unsigned int _acd_num_levels_show(struct adreno_device *adreno_dev)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
-		return 0;
-
-	cmd = &gmu->hfi.acd_tbl_cmd;
-	return cmd->num_levels;
-}
-
-static int _acd_num_levels_store(struct adreno_device *adreno_dev,
-		unsigned int val)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
-		return -EINVAL;
-
-	if (!val || val > MAX_ACD_NUM_LEVELS)
-		return -EINVAL;
-
-	cmd = &gmu->hfi.acd_tbl_cmd;
-	cmd->num_levels = val;
-	return 0;
-}
-
-static unsigned int _acd_enable_by_level_show(struct adreno_device *adreno_dev)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
-		return 0;
-
-	cmd = &gmu->hfi.acd_tbl_cmd;
-	return cmd->enable_by_level;
-}
-
-static int _acd_enable_by_level_store(struct adreno_device *adreno_dev,
-		unsigned int val)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
-		return -EINVAL;
-
-	cmd = &gmu->hfi.acd_tbl_cmd;
-
-	if (hweight32(val) != cmd->num_levels)
-		return -EINVAL;
-
-	cmd->enable_by_level = val;
-	return 0;
-}
-
-static unsigned int _acd_data_show(struct adreno_device *adreno_dev)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
-	unsigned int index;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
-		return 0;
-
-	spin_lock(&acd_data_index_lock);
-	index = acd_data_index;
-	spin_unlock(&acd_data_index_lock);
-
-	cmd = &gmu->hfi.acd_tbl_cmd;
-	return cmd->data[index];
-}
-
-static int _acd_data_store(struct adreno_device *adreno_dev, unsigned int val)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct gmu_device *gmu = KGSL_GMU_DEVICE(device);
-	struct hfi_acd_table_cmd *cmd;
-	unsigned int index;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_ACD))
-		return -EINVAL;
-
-	spin_lock(&acd_data_index_lock);
-	index = acd_data_index;
-	spin_unlock(&acd_data_index_lock);
-
-	cmd = &gmu->hfi.acd_tbl_cmd;
-	cmd->data[index] = val;
 	return 0;
 }
 
@@ -632,40 +493,31 @@ static ADRENO_SYSFS_BOOL(throttling);
 static ADRENO_SYSFS_BOOL(ifpc);
 static ADRENO_SYSFS_RO_U32(ifpc_count);
 static ADRENO_SYSFS_BOOL(acd);
+static ADRENO_SYSFS_BOOL(perfcounter);
 
-static ADRENO_SYSFS_U32(acd_data_index);
-static ADRENO_SYSFS_U32(acd_version);
-static ADRENO_SYSFS_U32(acd_stride);
-static ADRENO_SYSFS_U32(acd_num_levels);
-static ADRENO_SYSFS_U32(acd_enable_by_level);
-static ADRENO_SYSFS_U32(acd_data);
 
-static const struct device_attribute *_attr_list[] = {
-	&adreno_attr_ft_policy.attr,
-	&adreno_attr_ft_pagefault_policy.attr,
-	&adreno_attr_ft_long_ib_detect.attr,
-	&adreno_attr_ft_hang_intr_status.attr,
-	&dev_attr_wake_nice.attr,
-	&adreno_attr_sptp_pc.attr,
-	&adreno_attr_lm.attr,
-	&adreno_attr_preemption.attr,
-	&adreno_attr_hwcg.attr,
-	&adreno_attr_throttling.attr,
-	&adreno_attr_gpu_llc_slice_enable.attr,
-	&adreno_attr_gpuhtw_llc_slice_enable.attr,
-	&adreno_attr_preempt_level.attr,
-	&adreno_attr_usesgmem.attr,
-	&adreno_attr_skipsaverestore.attr,
-	&adreno_attr_ifpc.attr,
-	&adreno_attr_ifpc_count.attr,
-	&adreno_attr_preempt_count.attr,
-	&adreno_attr_acd.attr,
-	&adreno_attr_acd_data_index.attr,
-	&adreno_attr_acd_version.attr,
-	&adreno_attr_acd_stride.attr,
-	&adreno_attr_acd_num_levels.attr,
-	&adreno_attr_acd_enable_by_level.attr,
-	&adreno_attr_acd_data.attr,
+static const struct attribute *_attr_list[] = {
+	&adreno_attr_ft_policy.attr.attr,
+	&adreno_attr_ft_pagefault_policy.attr.attr,
+	&adreno_attr_ft_long_ib_detect.attr.attr,
+	&adreno_attr_ft_hang_intr_status.attr.attr,
+	&dev_attr_wake_nice.attr.attr,
+	&dev_attr_wake_timeout.attr.attr,
+	&adreno_attr_sptp_pc.attr.attr,
+	&adreno_attr_lm.attr.attr,
+	&adreno_attr_preemption.attr.attr,
+	&adreno_attr_hwcg.attr.attr,
+	&adreno_attr_throttling.attr.attr,
+	&adreno_attr_gpu_llc_slice_enable.attr.attr,
+	&adreno_attr_gpuhtw_llc_slice_enable.attr.attr,
+	&adreno_attr_preempt_level.attr.attr,
+	&adreno_attr_usesgmem.attr.attr,
+	&adreno_attr_skipsaverestore.attr.attr,
+	&adreno_attr_ifpc.attr.attr,
+	&adreno_attr_ifpc_count.attr.attr,
+	&adreno_attr_preempt_count.attr.attr,
+	&adreno_attr_acd.attr.attr,
+	&adreno_attr_perfcounter.attr.attr,
 	NULL,
 };
 
@@ -815,12 +667,12 @@ int adreno_sysfs_init(struct adreno_device *adreno_dev)
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 	int ret;
 
-	ret = kgsl_create_device_sysfs_files(device->dev, _attr_list);
+	ret = sysfs_create_files(&device->dev->kobj, _attr_list);
 
-	/* Add the PPD directory and files */
-	if (ret == 0)
-		ppd_sysfs_init(adreno_dev);
+	/* Notify userspace */
+	if (!ret)
+		kobject_uevent(&device->dev->kobj, KOBJ_ADD);
 
-	return 0;
+	return ret;
 }
 

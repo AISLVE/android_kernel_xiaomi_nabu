@@ -1,14 +1,7 @@
-/* Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include <linux/module.h>
 #include <linux/uaccess.h>
@@ -845,6 +838,25 @@ static int adreno_of_parse_pwrlevels(struct adreno_device *adreno_dev,
 	return 0;
 }
 
+static void adreno_of_get_bimc_iface_clk(struct adreno_device *adreno_dev,
+		struct device_node *node)
+{
+	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
+	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
+
+	/* Getting gfx-bimc-interface-clk frequency */
+	if (!of_property_read_u32(node, "qcom,gpu-bimc-interface-clk-freq",
+				&pwr->gpu_bimc_int_clk_freq)) {
+		pwr->gpu_bimc_int_clk = devm_clk_get(&device->pdev->dev,
+				"bimc_gpu_clk");
+		if (IS_ERR_OR_NULL(pwr->gpu_bimc_int_clk)) {
+			dev_err(&device->pdev->dev,
+					"dt: Couldn't get bimc_gpu_clk (%d)\n",
+					PTR_ERR(pwr->gpu_bimc_int_clk));
+			pwr->gpu_bimc_int_clk = NULL;
+		}
+	}
+}
 
 static void adreno_of_get_initial_pwrlevel(struct adreno_device *adreno_dev,
 		struct device_node *node)
@@ -859,6 +871,7 @@ static void adreno_of_get_initial_pwrlevel(struct adreno_device *adreno_dev,
 		init_level = 1;
 
 	pwr->active_pwrlevel = init_level;
+	pwr->default_pwrlevel = init_level;
 }
 
 static int adreno_of_get_legacy_pwrlevels(struct adreno_device *adreno_dev,
@@ -1007,6 +1020,11 @@ static int adreno_of_get_power(struct adreno_device *adreno_dev,
 	if (of_property_read_u32(node, "qcom,pm-qos-active-latency",
 		&device->pwrctrl.pm_qos_active_latency))
 		device->pwrctrl.pm_qos_active_latency = 501;
+
+	/* get pm-qos-cpu-mask-latency, set it to default if not found */
+	if (of_property_read_u32(node, "qcom,l2pc-cpu-mask-latency",
+		&device->pwrctrl.pm_qos_cpu_mask_latency))
+		device->pwrctrl.pm_qos_cpu_mask_latency = 501;
 
 	/* get pm-qos-wakeup-latency, set it to default if not found */
 	if (of_property_read_u32(node, "qcom,pm-qos-wakeup-latency",
@@ -1296,6 +1314,8 @@ static int adreno_probe(struct platform_device *pdev)
 
 	adreno_debugfs_init(adreno_dev);
 	adreno_profile_init(adreno_dev);
+
+	adreno_dev->perfcounter = false;
 
 	adreno_sysfs_init(adreno_dev);
 
@@ -1759,6 +1779,10 @@ static int _adreno_start(struct adreno_device *adreno_dev)
 
 	/* make sure ADRENO_DEVICE_STARTED is not set here */
 	WARN_ON(test_bit(ADRENO_DEVICE_STARTED, &adreno_dev->priv));
+
+	/* disallow l2pc during wake up to improve GPU wake up time */
+	kgsl_pwrctrl_update_l2pc(&adreno_dev->dev,
+			KGSL_L2PC_WAKEUP_TIMEOUT);
 
 	pm_qos_update_request(&device->pwrctrl.pm_qos_req_dma,
 			pmqos_wakeup_vote);
