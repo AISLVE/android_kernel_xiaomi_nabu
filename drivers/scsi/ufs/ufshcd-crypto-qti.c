@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020, Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -274,7 +273,9 @@ int ufshcd_crypto_qti_init_crypto(struct ufs_hba *hba,
 	mmio_base = devm_ioremap_resource(hba->dev, mem_res);
 	if (IS_ERR(mmio_base)) {
 		pr_err("%s: Unable to get ufs_crypto mmio base\n", __func__);
-		return PTR_ERR(mmio_base);
+		hba->caps &= ~UFSHCD_CAP_CRYPTO;
+		hba->quirks |= UFSHCD_QUIRK_BROKEN_CRYPTO;
+		return err;
 	}
 
 	err = ufshcd_hba_init_crypto_qti_spec(hba, &ufshcd_crypto_qti_ksm_ops);
