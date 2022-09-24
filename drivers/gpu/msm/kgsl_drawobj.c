@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2019,2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -43,6 +43,7 @@
 static struct kmem_cache *memobjs_cache;
 static struct kmem_cache *sparseobjs_cache;
 
+#ifdef CONFIG_FENCE_DEBUG
 static void free_fence_names(struct kgsl_drawobj_sync *syncobj)
 {
 	unsigned int i;
@@ -54,6 +55,7 @@ static void free_fence_names(struct kgsl_drawobj_sync *syncobj)
 			kfree(event->info.fences);
 	}
 }
+#endif
 
 void kgsl_drawobj_destroy_object(struct kref *kref)
 {
@@ -66,7 +68,9 @@ void kgsl_drawobj_destroy_object(struct kref *kref)
 	switch (drawobj->type) {
 	case SYNCOBJ_TYPE:
 		syncobj = SYNCOBJ(drawobj);
+#ifdef CONFIG_FENCE_DEBUG
 		free_fence_names(syncobj);
+#endif
 		kfree(syncobj->synclist);
 		kfree(syncobj);
 		break;
@@ -107,12 +111,14 @@ void kgsl_dump_syncpoints(struct kgsl_device *device,
 			break;
 		}
 		case KGSL_CMD_SYNCPOINT_TYPE_FENCE: {
+#ifdef CONFIG_FENCE_DEBUG
 			int j;
 			struct event_fence_info *info = &event->info;
 
 			for (j = 0; j < info->num_fences; j++)
 				dev_err(device->dev, "[%d]  fence: %s\n",
 					i, info->fences[j].name);
+#endif
 			break;
 		}
 		}
@@ -164,12 +170,14 @@ static void syncobj_timer(unsigned long data)
 				i, event->context->id, event->timestamp);
 			break;
 		case KGSL_CMD_SYNCPOINT_TYPE_FENCE: {
+#ifdef CONFIG_FENCE_DEBUG
 			int j;
 			struct event_fence_info *info = &event->info;
 
 			for (j = 0; j < info->num_fences; j++)
 				dev_err(device->dev, "       [%u] FENCE %s\n",
 					i, info->fences[j].name);
+#endif
 			break;
 		}
 		}
@@ -355,11 +363,13 @@ EXPORT_SYMBOL(kgsl_drawobj_destroy);
 static bool drawobj_sync_fence_func(void *priv)
 {
 	struct kgsl_drawobj_sync_event *event = priv;
+#ifdef CONFIG_FENCE_DEBUG
 	int i;
 
 	for (i = 0; i < event->info.num_fences; i++)
 		trace_syncpoint_fence_expire(event->syncobj,
 			event->info.fences[i].name);
+#endif
 
 	/*
 	 * Only call kgsl_drawobj_put() if it's not marked for cancellation
@@ -385,7 +395,10 @@ static int drawobj_add_sync_fence(struct kgsl_device *device,
 	struct kgsl_cmd_syncpoint_fence *sync = priv;
 	struct kgsl_drawobj *drawobj = DRAWOBJ(syncobj);
 	struct kgsl_drawobj_sync_event *event;
-	unsigned int id, i;
+	unsigned int id;
+#ifdef CONFIG_FENCE_DEBUG
+	unsigned int i;
+#endif
 
 	kref_get(&drawobj->refcount);
 
@@ -423,8 +436,10 @@ static int drawobj_add_sync_fence(struct kgsl_device *device,
 		return ret;
 	}
 
+#ifdef CONFIG_FENCE_DEBUG
 	for (i = 0; i < event->info.num_fences; i++)
 		trace_syncpoint_fence(syncobj, event->info.fences[i].name);
+#endif
 
 	return 0;
 }
@@ -569,6 +584,7 @@ static void add_profiling_buffer(struct kgsl_device *device,
 {
 	struct kgsl_mem_entry *entry;
 	struct kgsl_drawobj *drawobj = DRAWOBJ(cmdobj);
+	u64 start;
 
 	if (!(drawobj->flags & KGSL_DRAWOBJ_PROFILING))
 		return;
@@ -585,7 +601,14 @@ static void add_profiling_buffer(struct kgsl_device *device,
 			gpuaddr);
 
 	if (entry != NULL) {
-		if (!kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, size)) {
+		start = id ? (entry->memdesc.gpuaddr + offset) : gpuaddr;
+		/*
+		 * Make sure there is enough room in the object to store the
+		 * entire profiling buffer object
+		 */
+		if (!kgsl_gpuaddr_in_memdesc(&entry->memdesc, gpuaddr, size) ||
+			!kgsl_gpuaddr_in_memdesc(&entry->memdesc, start,
+				sizeof(struct kgsl_drawobj_profiling_buffer))) {
 			kgsl_mem_entry_put(entry);
 			entry = NULL;
 		}
@@ -598,28 +621,7 @@ static void add_profiling_buffer(struct kgsl_device *device,
 		return;
 	}
 
-
-	if (!id) {
-		cmdobj->profiling_buffer_gpuaddr = gpuaddr;
-	} else {
-		u64 off = offset + sizeof(struct kgsl_drawobj_profiling_buffer);
-
-		/*
-		 * Make sure there is enough room in the object to store the
-		 * entire profiling buffer object
-		 */
-		if (off < offset || off >= entry->memdesc.size) {
-			dev_err(device->dev,
-				"ignore invalid profile offset ctxt %d id %d offset %lld gpuaddr %llx size %lld\n",
-			drawobj->context->id, id, offset, gpuaddr, size);
-			kgsl_mem_entry_put(entry);
-			return;
-		}
-
-		cmdobj->profiling_buffer_gpuaddr =
-			entry->memdesc.gpuaddr + offset;
-	}
-
+	cmdobj->profiling_buffer_gpuaddr = start;
 	cmdobj->profiling_buf_entry = entry;
 }
 
