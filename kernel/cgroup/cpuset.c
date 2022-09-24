@@ -78,7 +78,6 @@ struct fmeter {
 
 struct cpuset {
 	struct cgroup_subsys_state css;
-	u64 types;
 
 	unsigned long flags;		/* "unsigned long" so bitops work */
 
@@ -555,19 +554,6 @@ static int validate_change(struct cpuset *cur, struct cpuset *trial)
 out:
 	rcu_read_unlock();
 	return ret;
-}
-
-int task_type(struct task_struct *task)
-{
-	struct cpuset *cs;
-
-	if (unlikely(!cpusets_enabled()))
-		return 0;
-
-	rcu_read_lock();
-	cs = task_cs(task);
-	rcu_read_unlock();
-	return cs->types;
 }
 
 #ifdef CONFIG_SMP
@@ -1569,7 +1555,6 @@ static void cpuset_attach(struct cgroup_taskset *tset)
 	cgroup_taskset_first(tset, &css);
 	cs = css_cs(css);
 
-	cpus_read_lock();
 	mutex_lock(&cpuset_mutex);
 
 	/* prepare for attach */
@@ -1625,7 +1610,6 @@ static void cpuset_attach(struct cgroup_taskset *tset)
 		wake_up(&cpuset_attach_wq);
 
 	mutex_unlock(&cpuset_mutex);
-	cpus_read_unlock();
 }
 
 /* The various types of files and directories in a cpuset file system */
