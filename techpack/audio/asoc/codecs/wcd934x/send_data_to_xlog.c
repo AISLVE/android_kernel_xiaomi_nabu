@@ -27,7 +27,7 @@ int xlog_send_int(const unsigned int zl, const unsigned int zr)
 	if (ret < 0) {
 		return ret;
 	}
-	xlogchar_kwrite(msg, sizeof(msg));
+	//xlogchar_kwrite(msg, sizeof(msg));
 	pr_info("%s: send msg: %s", __func__, msg);
 	return ret;
 }
