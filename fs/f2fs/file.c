@@ -384,9 +384,9 @@ out:
 
 	/* print slow fsync spend more than 1s */
 	if (duration > 1000)
-		pr_info("[f2fs] slow fsync: %llu ms, cp_reason: %s, "
+		/*pr_info("[f2fs] slow fsync: %llu ms, cp_reason: %s, "
 			"datasync = %d, ret = %d", duration,
-			f2fs_cp_reasons[cp_reason], datasync, ret);
+			f2fs_cp_reasons[cp_reason], datasync, ret);*/
 	trace_f2fs_sync_file_exit(inode, cp_reason, datasync, ret);
 	f2fs_trace_ios(NULL, 1);
 	stat_inc_sync_file_count(sbi);
