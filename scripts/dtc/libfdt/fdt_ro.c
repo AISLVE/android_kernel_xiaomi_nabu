@@ -234,40 +234,23 @@ int fdt_path_offset(const void *fdt, const char *path)
 const char *fdt_get_name(const void *fdt, int nodeoffset, int *len)
 {
 	const struct fdt_node_header *nh = fdt_offset_ptr_(fdt, nodeoffset);
-	const char *nameptr;
 	int err;
 
 	if (((err = fdt_check_header(fdt)) != 0)
 	    || ((err = fdt_check_node_offset_(fdt, nodeoffset)) < 0))
 			goto fail;
 
-	nameptr = nh->name;
-
-	if (fdt_version(fdt) < 0x10) {
-		/*
-		 * For old FDT versions, match the naming conventions of V16:
-		 * give only the leaf name (after all /). The actual tree
-		 * contents are loosely checked.
-		 */
-		const char *leaf;
-		leaf = strrchr(nameptr, '/');
-		if (leaf == NULL) {
-			err = -FDT_ERR_BADSTRUCTURE;
-			goto fail;
-		}
-		nameptr = leaf+1;
-	}
-
 	if (len)
-		*len = strlen(nameptr);
+		*len = strlen(nh->name);
 
-	return nameptr;
+	return nh->name;
 
  fail:
 	if (len)
 		*len = err;
 	return NULL;
 }
+
 
 int fdt_first_property_offset(const void *fdt, int nodeoffset)
 {
