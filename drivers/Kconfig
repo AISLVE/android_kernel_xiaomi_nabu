@@ -225,8 +225,6 @@ source "drivers/sensors/Kconfig"
 
 source "drivers/esoc/Kconfig"
 
-source "drivers/halls/Kconfig"
-
-source "drivers/trusty/Kconfig"
+source "techpack/data/drivers/Kconfig"
 
 endmenu

@@ -474,6 +474,9 @@ static int mt_touch_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 	int code;
 	struct hid_usage *prev_usage = NULL;
 
+	if (!*bit)
+		return -1;
+
 	if (field->application == HID_DG_TOUCHSCREEN)
 		td->mt_flags |= INPUT_MT_DIRECT;
 
@@ -1552,6 +1555,9 @@ static const struct hid_device_id mt_devices[] = {
 	{ .driver_data = MT_CLS_EGALAX_SERIAL,
 		MT_USB_DEVICE(USB_VENDOR_ID_DWAV,
 			USB_DEVICE_ID_DWAV_EGALAX_MULTITOUCH_A001) },
+	{ .driver_data = MT_CLS_EGALAX,
+		MT_USB_DEVICE(USB_VENDOR_ID_DWAV,
+			USB_DEVICE_ID_DWAV_EGALAX_MULTITOUCH_C002) },
 
 	/* Elitegroup panel */
 	{ .driver_data = MT_CLS_SERIAL,

@@ -753,6 +753,25 @@ static int qpnp_rtc_freeze(struct device *dev)
 	return 0;
 }
 
+extern bool alarm_fired;
+static int qpnp_rtc_resume(struct device *dev)
+{
+	struct qpnp_rtc *rtc_dd = dev_get_drvdata(dev);
+
+	if (alarm_fired == true) {
+		pr_info("Alarm event generated during suspend\n");
+		log_irq_wakeup_reason(rtc_dd->rtc_alarm_irq);
+	}
+
+	return 0;
+}
+
+static int qpnp_rtc_suspend(struct device *dev)
+{
+	alarm_fired = false;
+	return 0;
+}
+
 static const struct dev_pm_ops qpnp_rtc_pm_ops = {
 	.freeze = qpnp_rtc_freeze,
 	.restore = qpnp_rtc_restore,

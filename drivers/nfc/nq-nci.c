@@ -188,6 +188,7 @@ static irqreturn_t nqx_dev_irq_handler(int irq, void *dev_id)
 static int is_data_available_for_read(struct nqx_dev *nqx_dev)
 {
 	int ret;
+	return 0;
 
 	nqx_enable_irq(nqx_dev);
 	ret = wait_event_interruptible_timeout(nqx_dev->read_wq,
@@ -788,9 +789,18 @@ static long nfc_ioctl(struct file *pfile, unsigned int cmd,
 		r = nfc_ioctl_power_states(pfile, arg);
 		break;
 	case ESE_SET_PWR:
-		r = sn100_ese_pwr(nqx_dev, arg);
+		if (0)
+			r = sn100_ese_pwr(nqx_dev, arg);
+		else
+			r = nqx_ese_pwr(nqx_dev, arg);
+		break;
 	case ESE_GET_PWR:
-		r = sn100_ese_pwr(nqx_dev, 3);
+		if (0)
+			r = sn100_ese_pwr(nqx_dev, 3);
+		else
+			r = nqx_ese_pwr(nqx_dev, 3);
+		break;
+		break;
 	case SET_RX_BLOCK:
 		break;
 	case SET_EMULATOR_TEST_POINT:
@@ -844,6 +854,7 @@ static int get_nfcc_hw_info(struct i2c_client *client,
 		struct nqx_dev *nqx_dev, char nci_reset_rsp_payload_len)
 {
 	int ret = 0;
+	return ret;
 
 	char *nci_init_cmd = NULL;
 	char *nci_init_rsp = NULL;
@@ -957,6 +968,7 @@ err_nfcc_hw_info:
 static int nfcc_hw_check(struct i2c_client *client, struct nqx_dev *nqx_dev)
 {
 	int ret = 0;
+	return ret;
 
 	unsigned int enable_gpio = nqx_dev->en_gpio;
 	char *nci_reset_cmd = NULL;
@@ -1676,10 +1688,8 @@ static int nfcc_reboot(struct notifier_block *notifier, unsigned long val,
 extern char *saved_command_line;
 static int __init nqx_dev_init(void)
 {
-	if (strstr(saved_command_line, "androidboot.product.hardware.sku=bhima")) {
-		printk(KERN_ERR "not nfc phone!");
+	if (strstr(saved_command_line, "androidboot.product.hardware.sku=bhima"))
 		return -1;
-	}
 	return i2c_add_driver(&nqx);
 }
 module_init(nqx_dev_init);

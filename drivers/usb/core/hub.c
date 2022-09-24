@@ -38,8 +38,11 @@
 
 #define USB_VENDOR_GENESYS_LOGIC		0x05e3
 #define USB_VENDOR_SMSC				0x0424
+#define USB_PRODUCT_USB5534B			0x5534
 #define HUB_QUIRK_CHECK_PORT_AUTOSUSPEND	0x01
 #define HUB_QUIRK_DISABLE_AUTOSUSPEND		0x02
+
+int deny_new_usb __read_mostly = 0;
 
 /* Protect struct usb_device->state and ->children members
  * Note: Both are also protected by ->dev.sem, except that ->state can
@@ -4893,6 +4896,12 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
 			goto done;
 		return;
 	}
+
+	if (deny_new_usb) {
+		dev_err(&port_dev->dev, "denied insert of USB device on port %d\n", port1);
+		goto done;
+	}
+
 	if (hub_is_superspeed(hub->hdev))
 		unit_load = 150;
 	else
@@ -5350,8 +5359,11 @@ out_hdev_lock:
 }
 
 static const struct usb_device_id hub_id_table[] = {
-    { .match_flags = USB_DEVICE_ID_MATCH_VENDOR | USB_DEVICE_ID_MATCH_INT_CLASS,
+    { .match_flags = USB_DEVICE_ID_MATCH_VENDOR
+                   | USB_DEVICE_ID_MATCH_PRODUCT
+                   | USB_DEVICE_ID_MATCH_INT_CLASS,
       .idVendor = USB_VENDOR_SMSC,
+      .idProduct = USB_PRODUCT_USB5534B,
       .bInterfaceClass = USB_CLASS_HUB,
       .driver_info = HUB_QUIRK_DISABLE_AUTOSUSPEND},
     { .match_flags = USB_DEVICE_ID_MATCH_VENDOR

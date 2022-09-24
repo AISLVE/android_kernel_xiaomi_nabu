@@ -83,7 +83,15 @@ static struct rtc_device	*rtcdev;
 static DEFINE_SPINLOCK(rtcdev_lock);
 bool alarm_fired;
 
-#ifdef ENABLE_ALARMTIMER_RECORD
+static void alarmtimer_triggered_func(void *p)
+{
+	struct rtc_device *rtc = rtcdev;
+
+	if (!(rtc->irq_data & RTC_AF))
+		return;
+	__pm_wakeup_event(ws, 2 * MSEC_PER_SEC);
+}
+
 static void alarmtimer_collect(struct alarm *alarm)
 {
 	static int m = 0;
@@ -111,16 +119,6 @@ static void alarmtimer_collect(struct alarm *alarm)
 	}
 
 	spin_unlock(&alarmtimer_lock);
-}
-#endif
-
-static void alarmtimer_triggered_func(void *p)
-{
-	struct rtc_device *rtc = rtcdev;
-
-	if (!(rtc->irq_data & RTC_AF))
-		return;
-	__pm_wakeup_event(ws, 2 * MSEC_PER_SEC);
 }
 
 static struct rtc_task alarmtimer_rtc_task = {
@@ -241,12 +239,14 @@ static void alarmtimer_enqueue(struct alarm_base *base, struct alarm *alarm)
 	if (alarm->state & ALARMTIMER_STATE_ENQUEUED)
 		timerqueue_del(&base->timerqueue, &alarm->node);
 
-#ifdef ENABLE_ALARMTIMER_RECORD
-	alarmtimer_collect(alarm);
-#endif
+	#ifdef ENABLE_ALARMTIMER_RECORD
+		alarmtimer_collect(alarm);
+	#endif
+
 	timerqueue_add(&base->timerqueue, &alarm->node);
 	alarm->state |= ALARMTIMER_STATE_ENQUEUED;
 }
+
 
 /**
  * alarmtimer_dequeue - Removes an alarm timer from an alarm_base timerqueue

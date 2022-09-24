@@ -406,7 +406,7 @@ void sde_connector_schedule_status_work(struct drm_connector *connector,
 				c_conn->esd_status_interval :
 					STATUS_CHECK_INTERVAL_MS;
 			/* Schedule ESD status check */
-			schedule_delayed_work(&c_conn->status_work,
+			queue_delayed_work(system_power_efficient_wq, &c_conn->status_work,
 				msecs_to_jiffies(interval));
 			c_conn->esd_status_check = true;
 		} else {
@@ -1035,7 +1035,10 @@ void sde_connector_helper_bridge_enable(struct drm_connector *connector)
 				MSM_ENC_TX_COMPLETE);
 	c_conn->allow_bl_update = true;
 
-	if (!display->is_first_boot && c_conn->bl_device) {
+	#if 0
+	if (c_conn->bl_device) {
+	#endif
+	if (c_conn->bl_device && !display->is_first_boot) {
 		c_conn->bl_device->props.power = FB_BLANK_UNBLANK;
 		c_conn->bl_device->props.state &= ~BL_CORE_FBBLANK;
 		backlight_update_status(c_conn->bl_device);
@@ -2166,45 +2169,28 @@ static irqreturn_t esd_err_irq_handle(int irq, void *data)
 	struct sde_connector *c_conn = data;
 	struct drm_event event;
 	bool panel_on = false;
-	struct dsi_display *display = c_conn->display;
 
-	if (!display || !display->panel) {
-		SDE_ERROR("invalid display/panel\n");
+	if (!c_conn && !c_conn->display) {
+		SDE_ERROR("not able to get connector object\n");
 		return IRQ_HANDLED;
 	}
-
-	if (gpio_get_value(display->panel->esd_config.esd_err_irq_gpio) && display->panel->cphy_esd_check) {
-		SDE_ERROR("trigger esd by mistake,return\n");
-		return IRQ_HANDLED;
-	}
-
-	SDE_INFO("panel ESD irq trigging\n");
 
 	if (c_conn->connector_type == DRM_MODE_CONNECTOR_DSI) {
 		struct dsi_display * dsi_display = (struct dsi_display *)(c_conn->display);
-		if (dsi_display && dsi_display->panel) {
+		if (dsi_display && dsi_display->panel)
 			panel_on = dsi_display->panel->panel_initialized;
-		}
-
-		if (atomic_read(&(display->panel->esd_recovery_pending))) {
-			SDE_ERROR("ESD recovery already pending\n");
-			return IRQ_HANDLED;
-		}
-
-		if (panel_on && (c_conn->panel_dead == false)) {
-			SDE_ERROR("esd check irq report PANEL_DEAD"
-					"conn_id: %d enc_id: %d, panel_status[%d]\n",
-					c_conn->base.base.id, c_conn->encoder->base.id, panel_on);
-			atomic_set(&display->panel->esd_recovery_pending, 1);
-			c_conn->panel_dead = true;
-			event.type = DRM_EVENT_PANEL_DEAD;
-			event.length = sizeof(bool);
-			msm_mode_object_event_notify(&c_conn->base.base,
-				c_conn->base.dev, &event, (u8 *)&c_conn->panel_dead);
-			sde_encoder_display_failure_notification(c_conn->encoder,false);
-		}
 	}
 
+	if (panel_on && (c_conn->panel_dead == false)) {
+		SDE_ERROR("esd check irq report PANEL_DEAD conn_id: %d enc_id: %d, panel_status[%d]\n",
+			c_conn->base.base.id, c_conn->encoder->base.id, panel_on);
+		c_conn->panel_dead = true;
+		event.type = DRM_EVENT_PANEL_DEAD;
+		event.length = sizeof(bool);
+		msm_mode_object_event_notify(&c_conn->base.base,
+			c_conn->base.dev, &event, (u8 *)&c_conn->panel_dead);
+		sde_encoder_display_failure_notification(c_conn->encoder,false);
+	}
 	return IRQ_HANDLED;
 }
 
@@ -2310,7 +2296,7 @@ static void sde_connector_check_status_work(struct work_struct *work)
 		/* If debugfs property is not set then take default value */
 		interval = conn->esd_status_interval ?
 			conn->esd_status_interval : STATUS_CHECK_INTERVAL_MS;
-		schedule_delayed_work(&conn->status_work,
+		queue_delayed_work(system_power_efficient_wq, &conn->status_work,
 			msecs_to_jiffies(interval));
 		return;
 	}
@@ -2660,6 +2646,19 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 			} else {
 				pr_info("%s: Request esd irq succeed!\n", __func__);
 			}
+		}
+	}
+
+	/* register esd irq and enable it after panel enabled */
+	if (dsi_display && dsi_display->panel &&
+		dsi_display->panel->esd_config.esd_err_irq_gpio > 0) {
+		rc = request_threaded_irq(dsi_display->panel->esd_config.esd_err_irq,
+						NULL, esd_err_irq_handle,
+						dsi_display->panel->esd_config.esd_err_irq_flags,
+						"esd_err_irq", c_conn);
+		if (rc < 0) {
+			pr_err("%s: request irq %d failed\n", __func__, dsi_display->panel->esd_config.esd_err_irq);
+				dsi_display->panel->esd_config.esd_err_irq = 0;
 		}
 	}
 
