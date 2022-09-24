@@ -562,7 +562,7 @@ static void pm_qos_irq_notify(struct irq_affinity_notify *notify,
 			irq_data_get_effective_affinity_mask(&desc->irq_data);
 	bool affinity_changed = false;
 
-	atomic_set(&req->cpus_affine, *cpumask_bits(mask));
+	atomic_set(&req->cpus_affine, *cpumask_bits(unused_mask));
 	pm_qos_update_target(c, &req->node, PM_QOS_UPDATE_REQ, req->node.prio);
 }
 #endif

@@ -721,23 +721,22 @@ static int snd_pcm_hw_params(struct snd_pcm_substream *substream,
 		runtime->boundary *= 2;
 
 	/* clear the buffer for avoiding possible kernel info leaks */
-	if (runtime->dma_area && !substream->ops->copy_user)
-		memset(runtime->dma_area, 0, runtime->dma_bytes);
+	if (runtime->dma_area && !substream->ops->copy_user) {
+		size_t size = runtime->dma_bytes;
+
+		if (runtime->info & SNDRV_PCM_INFO_MMAP)
+			size = PAGE_ALIGN(size);
+		memset(runtime->dma_area, 0, size);
+	}
 
 	snd_pcm_timer_resolution_change(substream);
 	snd_pcm_set_state(substream, SNDRV_PCM_STATE_SETUP);
 
 	if (pm_qos_request_active(&substream->latency_pm_qos_req))
 		pm_qos_remove_request(&substream->latency_pm_qos_req);
-	if ((usecs = period_to_usecs(runtime)) >= 0) {
-		substream->latency_pm_qos_req.type = PM_QOS_REQ_AFFINE_CORES;
-
-		cpumask_empty(&substream->latency_pm_qos_req.cpus_affine);
-		cpumask_set_cpu(0, &substream->latency_pm_qos_req.cpus_affine);
-
+	if ((usecs = period_to_usecs(runtime)) >= 0)
 		pm_qos_add_request(&substream->latency_pm_qos_req,
 				   PM_QOS_CPU_DMA_LATENCY, usecs);
-	}
 	return 0;
  _error:
 	/* hardware might be unusable from this time,
@@ -748,6 +747,7 @@ static int snd_pcm_hw_params(struct snd_pcm_substream *substream,
 		substream->ops->hw_free(substream);
 	return err;
 }
+
 
 static int snd_pcm_hw_params_user(struct snd_pcm_substream *substream,
 				  struct snd_pcm_hw_params __user * _params)
