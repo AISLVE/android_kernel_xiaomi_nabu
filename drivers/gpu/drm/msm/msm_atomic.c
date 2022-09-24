@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
  * Copyright (C) 2014 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -73,15 +73,11 @@ EXPORT_SYMBOL(msm_drm_unregister_client);
  * @v: notifier data, inculde display id and display blank
  *     event(unblank or power down).
  */
-#if 0
 static int msm_drm_notifier_call_chain(unsigned long val, void *v)
-#endif
-int msm_drm_notifier_call_chain(unsigned long val, void *v)
 {
 	return blocking_notifier_call_chain(&msm_drm_notifier_list, val,
 					    v);
 }
-EXPORT_SYMBOL(msm_drm_notifier_call_chain);
 
 /* block until specified crtcs are no longer pending update, and
  * atomically mark them as pending update
@@ -764,16 +760,6 @@ int msm_atomic_commit(struct drm_device *dev,
 			drm_atomic_set_fence_for_plane(new_plane_state, fence);
 		}
 		c->plane_mask |= (1 << drm_plane_index(plane));
-	}
-
-	/* Protection for prepare_fence callback */
-retry:
-	ret = drm_modeset_lock(&state->dev->mode_config.connection_mutex,
-		state->acquire_ctx);
-
-	if (ret == -EDEADLK) {
-		drm_modeset_backoff(state->acquire_ctx);
-		goto retry;
 	}
 
 	/*

@@ -121,7 +121,6 @@ struct dsi_backlight_config {
 	u32 bl_level;
 	u32 bl_scale;
 	u32 bl_scale_ad;
-	bool bl_inverted_dbv;
 
 	int en_gpio;
 	bool bl_remap_flag;
@@ -176,12 +175,18 @@ struct drm_panel_esd_config {
 	int esd_err_irq_flags;
 };
 
+
+struct lockdowninfo_cfg {
+	u8 lockdowninfo[16];
+	bool lockdowninfo_read_done;
+};
+
 struct dsi_read_config {
 	bool enabled;
 	struct dsi_panel_cmd_set read_cmd;
 	u32 cmds_rlen;
 	u32 valid_bits;
-	u8 rbuf[64];
+	u8 rbuf[BUF_LEN_MAX];
 };
 
 struct dsi_panel {
@@ -236,9 +241,62 @@ struct dsi_panel {
 
 	bool sync_broadcast_en;
 
+	u32 panel_on_dimming_delay;
+	struct delayed_work cmds_work;
+	struct delayed_work fod_work;
+	struct delayed_work esd_work;
+	u32 last_bl_lvl;
+	u32 last_esd_bl_lvl;
+	s32 backlight_delta;
+
+	bool fod_hbm_enabled; /* prevent set DISPPARAM_DOZE_BRIGHTNESS_HBM/LBM in FOD HBM */
+	bool fod_dimlayer_enabled;
+	bool fod_dimlayer_hbm_enabled;
+	bool cphy_esd_check;
+	u32 fod_ui_ready;
+	u32 doze_backlight_threshold;
+	u32 fod_off_dimming_delay;
+	ktime_t fod_hbm_off_time;
+	ktime_t fod_backlight_off_time;
+
+	u32 panel_p3_mode;
+	u32 close_crc;
+
+	bool elvss_dimming_check_enable;
+	struct dsi_read_config elvss_dimming_cmds;
+	struct dsi_panel_cmd_set elvss_dimming_offset;
+	struct dsi_panel_cmd_set hbm_fod_on;
+	struct dsi_panel_cmd_set hbm_fod_off;
+	struct dsi_panel_cmd_set hbm_fod_off_doze_hbm_on;
+	struct dsi_panel_cmd_set hbm_fod_off_doze_lbm_on;
+
+	bool fod_backlight_flag;
+	u32 fod_target_backlight;
+	bool fod_flag;
+	bool in_aod; /* set  DISPPARAM_DOZE_BRIGHTNESS_HBM/LBM only in AOD */
+	bool crc_flag;
+	bool is_tddi_flag;
 	bool tddi_doubleclick_flag;
 	bool panel_dead_flag;
 
+	/* Display count */
+	bool panel_active_count_enable;
+	u64 boottime;
+	u64 bootRTCtime;
+	u64 bootdays;
+	u64 panel_active;
+	u64 kickoff_count;
+	u64 bl_duration;
+	u64 bl_level_integral;
+	u64 bl_highlevel_duration;
+	u64 bl_lowlevel_duration;
+	u64 hbm_duration;
+	u64 hbm_times;
+	u32 dc_threshold;
+	bool dc_enable;
+	bool dim_layer_replace_dc;
+	bool fod_dimlayer_bl_block;
+	bool fodflag;
 	int power_mode;
 	enum dsi_panel_physical_type panel_type;
 
@@ -372,5 +430,9 @@ void dsi_panel_ext_bridge_put(struct dsi_panel *panel);
 int dsi_panel_write_cmd_set(struct dsi_panel *panel, struct dsi_panel_cmd_set *cmd_sets);
 
 int dsi_panel_read_cmd_set(struct dsi_panel *panel, struct dsi_read_config *read_config);
+
+int dsi_panel_lockdowninfo_param_read(struct dsi_panel *panel);
+int dsi_panel_esd_irq_ctrl(struct dsi_panel *panel, bool enable);
+
 
 #endif /* _DSI_PANEL_H_ */

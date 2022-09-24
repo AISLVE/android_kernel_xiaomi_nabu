@@ -86,8 +86,6 @@ enum dsi_dsc_ratio_type {
 	DSC_RATIO_TYPE_MAX
 };
 
-static struct dsi_panel *g_panel;
-
 static u32 dsi_dsc_rc_buf_thresh[] = {0x0e, 0x1c, 0x2a, 0x38, 0x46, 0x54,
 		0x62, 0x69, 0x70, 0x77, 0x79, 0x7b, 0x7d, 0x7e};
 
@@ -472,13 +470,14 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 {
 	int rc = 0;
 
-	#if 0
-	rc = dsi_pwr_enable_regulator(&panel->power_info, true);
-	#endif
-	if (!panel->tddi_doubleclick_flag || panel->panel_dead_flag) {
+	if (panel->is_tddi_flag) {
+		if (!panel->tddi_doubleclick_flag || panel->panel_dead_flag) {
+			rc = dsi_pwr_enable_regulator(&panel->power_info, true);
+			if (panel->panel_dead_flag)
+				panel->panel_dead_flag = false;
+		}
+	} else {
 		rc = dsi_pwr_enable_regulator(&panel->power_info, true);
-		if (panel->panel_dead_flag)
-			panel->panel_dead_flag = false;
 	}
 
 	if (rc) {
@@ -527,11 +526,12 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
-	#if 0
-	if (gpio_is_valid(panel->reset_config.reset_gpio))
-		gpio_set_value(panel->reset_config.reset_gpio, 0);
-	#endif
-	if (!panel->tddi_doubleclick_flag || panel->panel_dead_flag) {
+	if (panel->is_tddi_flag) {
+		if (!panel->tddi_doubleclick_flag || panel->panel_dead_flag) {
+			if (gpio_is_valid(panel->reset_config.reset_gpio))
+				gpio_set_value(panel->reset_config.reset_gpio, 0);
+		}
+	} else {
 		if (gpio_is_valid(panel->reset_config.reset_gpio))
 			gpio_set_value(panel->reset_config.reset_gpio, 0);
 	}
@@ -545,12 +545,13 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		       rc);
 	}
 
-	#if 0
-	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
-	if (rc)
-		pr_err("[%s] failed to enable vregs, rc=%d\n", panel->name, rc);
-	#endif
-	if(!panel->tddi_doubleclick_flag || panel->panel_dead_flag) {
+	if (panel->is_tddi_flag) {
+		if(!panel->tddi_doubleclick_flag || panel->panel_dead_flag) {
+			rc = dsi_pwr_enable_regulator(&panel->power_info, false);
+			if (rc)
+				pr_err("[%s] failed to enable vregs, rc=%d\n", panel->name, rc);
+		}
+	} else {
 		rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 		if (rc)
 			pr_err("[%s] failed to enable vregs, rc=%d\n", panel->name, rc);
@@ -682,10 +683,11 @@ static int dsi_panel_update_backlight(struct dsi_panel *panel,
 
 	dsi = &panel->mipi_device;
 
-	if (panel->bl_config.bl_inverted_dbv)
-		bl_lvl = (((bl_lvl & 0xff) << 8) | (bl_lvl >> 8));
+	if (panel->bl_config.dcs_type_ss)
+		rc = mipi_dsi_dcs_set_display_brightness_ss(dsi, bl_lvl);
+	else
+		rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
 
-	rc = mipi_dsi_dcs_set_display_brightness(dsi, bl_lvl);
 	if (rc < 0)
 		pr_err("failed to update dcs backlight:%d\n", bl_lvl);
 
@@ -1655,15 +1657,30 @@ static int dsi_panel_parse_dfps_caps(struct dsi_panel *panel)
 		goto error;
 	}
 
-	dfps_caps->dfps_list_len = 3;
+	dfps_caps->dfps_list_len = utils->count_u32_elems(utils->data,
+				  "qcom,dsi-supported-dfps-list");
+	if (dfps_caps->dfps_list_len < 1) {
+		pr_err("[%s] dfps refresh list not present\n", name);
+		rc = -EINVAL;
+		goto error;
+	}
 
 	dfps_caps->dfps_list = kcalloc(dfps_caps->dfps_list_len, sizeof(u32),
 			GFP_KERNEL);
+	if (!dfps_caps->dfps_list) {
+		rc = -ENOMEM;
+		goto error;
+	}
 
-	dfps_caps->dfps_list[0] = 120;
-	dfps_caps->dfps_list[1] = 90;
-	dfps_caps->dfps_list[2] = 60;
-
+	rc = utils->read_u32_array(utils->data,
+			"qcom,dsi-supported-dfps-list",
+			dfps_caps->dfps_list,
+			dfps_caps->dfps_list_len);
+	if (rc) {
+		pr_err("[%s] dfps refresh rate list parse failed\n", name);
+		rc = -EINVAL;
+		goto error;
+	}
 	dfps_caps->dfps_support = true;
 
 	/* calculate max and min fps */
@@ -1998,6 +2015,14 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-dispparam-crc-off-command",
 	"qcom,mdss-dsi-dispparam-elvss-dimming-off-command",
 	"mi,mdss-dsi-read-lockdown-info-command",
+	"mi,mdss-dsi-max-luminance-write-command",
+	"mi,mdss-dsi-max-luminance-read-command",
+	"qcom,mdss-dsi-dispparam-pen-120hz-command",
+	"qcom,mdss-dsi-dispparam-pen-60hz-command",
+	"qcom,mdss-dsi-dispparam-pen-30hz-command",
+	"mi,mdss-dsi-esd-check-read-command",
+	"mi,mdss-dsi-disable-insert-black-command",
+	"mi,mdss-dsi-insert-black-screen-command",
 };
 
 const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
@@ -2078,6 +2103,14 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-dispparam-crc-off-command-state",
 	"qcom,mdss-dsi-dispparam-elvss-dimming-off-command-state",
 	"mi,mdss-dsi-read-lockdown-info-command-state",
+	"mi,mdss-dsi-max-luminance-write-command-state",
+	"mi,mdss-dsi-max-luminance-read-command-state",
+	"qcom,mdss-dsi-dispparam-pen-120hz-command-state",
+	"qcom,mdss-dsi-dispparam-pen-60hz-command-state",
+	"qcom,mdss-dsi-dispparam-pen-30hz-command-state",
+	"mi,mdss-dsi-esd-check-read-command-state",
+	"mi,mdss-dsi-disable-insert-black-command-state",
+	"mi,mdss-dsi-insert-black-screen-command-state",
 };
 
 static int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
@@ -2630,8 +2663,8 @@ static int dsi_panel_parse_bl_config(struct dsi_panel *panel)
 		panel->bl_config.brightness_default_level = val;
 	}
 
-	panel->bl_config.bl_inverted_dbv = utils->read_bool(utils->data,
-		"qcom,mdss-dsi-bl-inverted-dbv");
+	panel->bl_config.bl_remap_flag = utils->read_bool(utils->data,
+								"qcom,mdss-brightness-remap");
 
 	if (panel->bl_config.type == DSI_BACKLIGHT_PWM) {
 		rc = dsi_panel_parse_bl_pwm_config(panel);
@@ -4052,8 +4085,10 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	if (rc)
 		pr_debug("failed to parse esd config, rc=%d\n", rc);
 
-	panel->tddi_doubleclick_flag = false;
-	panel->panel_dead_flag = false;
+	rc = dsi_panel_parse_mi_config(panel, of_node);
+	if (rc)
+		pr_err("failed to parse mi config, rc=%d\n", rc);
+
 	g_panel = panel;
 
 	panel->power_mode = SDE_MODE_DPMS_OFF;
@@ -5732,19 +5767,20 @@ int dsi_panel_post_unprepare(struct dsi_panel *panel)
 
 	mutex_lock(&panel->panel_lock);
 
-	if (!panel->lp11_init)
-		goto error;
-
-	rc = dsi_panel_power_off(panel);
-	if (rc) {
-		pr_err("[%s] panel power_Off failed, rc=%d\n",
-		       panel->name, rc);
-		goto error;
+	if (panel->lp11_init) {
+		rc = dsi_panel_power_off(panel);
+		if (rc) {
+			pr_err("[%s] panel power_Off failed, rc=%d\n",
+			       panel->name, rc);
+			goto error;
+		}
 	}
 error:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
+
+
 
 static int dsi_panel_get_lockdown_from_cmdline(unsigned char *plockdowninfo)
 {
@@ -5773,65 +5809,199 @@ static int dsi_panel_get_lockdown_from_cmdline(unsigned char *plockdowninfo)
 	return ret;
 }
 
-ssize_t dsi_panel_lockdown_info_read(unsigned char *plockdowninfo)
+int dsi_panel_lockdowninfo_param_read(struct dsi_panel *panel)
 {
 	int rc = 0;
 	int i = 0;
+	struct dsi_panel_cmd_set *cmd_sets;
 	struct dsi_read_config ld_read_config;
-	struct dsi_panel_cmd_set cmd_sets = {0};
-
-	if (!dsi_panel_get_lockdown_from_cmdline(plockdowninfo))
-		return 1;
-	else if (!g_panel || !plockdowninfo) {
+	struct dsi_panel_cmd_set read_cmd_set = {0};
+	if (!panel || !panel->cur_mode || !panel->cur_mode->priv_info) {
 		pr_err("invalid params\n");
 		return -EINVAL;
 	}
 
-	while (!g_panel->cur_mode || !g_panel->cur_mode->priv_info) {
+	if (!panel->panel_initialized) {
+		pr_err("panel not initialized\n");
+		return -EINVAL;
+	}
+
+	cmd_sets = &panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_READ_LOCKDOWN_INFO];
+	if (cmd_sets->cmds) {
+		read_cmd_set.cmds = cmd_sets->cmds;
+		read_cmd_set.count = 1;
+		read_cmd_set.state = cmd_sets->state;
+		rc = dsi_panel_write_cmd_set(panel, &read_cmd_set);
+		if (rc) {
+			pr_err("[%s] failed to send cmds, rc=%d\n",panel->name, rc);
+			rc = -EIO;
+		}
+		pr_info("[%s]", panel->name);
+		if (strcmp(panel->name,"xiaomi 42 02 0a video mode dual dsi cphy panel") &&
+			strcmp(panel->name,"xiaomi 36 02 0b video mode dual dsi cphy panel")) {
+			ld_read_config.enabled= 1;
+			ld_read_config.cmds_rlen = 8;
+			ld_read_config.read_cmd = read_cmd_set;
+			ld_read_config.read_cmd.cmds = &read_cmd_set.cmds[1];
+			rc = dsi_panel_read_cmd_set(panel, &ld_read_config);
+			if (rc <= 0) {
+				pr_err("[%s] failed to read cmds, rc=%d\n", panel->name, rc);
+				rc = -EIO;
+			}
+			for(i = 0; i < 8; i++) {
+				pr_info("0x%x", ld_read_config.rbuf[i]);
+				panel->lockdowninfo_read.lockdowninfo[i] = ld_read_config.rbuf[i];
+			}
+
+			if (!strcmp(panel->name,"xiaomi 37 02 0b video mode dsc dsi panel")) {
+				panel->lockdowninfo_read.lockdowninfo[7] = 0x01;
+				pr_info("plockdowninfo[7] = 0x%d \n",
+					panel->lockdowninfo_read.lockdowninfo[7]);
+			}
+			panel->lockdowninfo_read.lockdowninfo_read_done = 1;
+		} else {
+			for(i = 0; i < 8; i++) {
+				ld_read_config.enabled= 1;
+				ld_read_config.cmds_rlen = 1;
+				ld_read_config.read_cmd = read_cmd_set;
+				ld_read_config.read_cmd.cmds = &read_cmd_set.cmds[i+1];
+				rc = dsi_panel_read_cmd_set(panel, &ld_read_config);
+				if (rc <= 0) {
+					pr_err("[%s] failed to read, rc=%d\n", panel->name, rc);
+					rc = -EIO;
+				}
+
+				pr_info("0x%x", ld_read_config.rbuf[0]);
+				panel->lockdowninfo_read.lockdowninfo[i] = ld_read_config.rbuf[0];
+			}
+			panel->lockdowninfo_read.lockdowninfo_read_done = 1;
+		}
+	}
+
+	return rc;
+
+}
+
+ssize_t dsi_panel_lockdown_info_read(unsigned char *plockdowninfo)
+{
+	int rc = 0;
+	int i = 0;
+	static int count = 0;
+	if (!dsi_panel_get_lockdown_from_cmdline(plockdowninfo))
+		return 1;
+	if (!g_panel || !plockdowninfo) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+
+	while (!g_panel->lockdowninfo_read.lockdowninfo_read_done && count < MAX_READ_LOCKDOWN_COUNT) {
 		pr_debug("[%s][%s] waitting for panel priv_info initialized!\n", __func__, g_panel->name);
 		msleep_interruptible(1000);
+		count++;
 	}
-
-	mutex_lock(&g_panel->panel_lock);
-	if (g_panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_READ_LOCKDOWN_INFO].cmds) {
-		cmd_sets.cmds = g_panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_READ_LOCKDOWN_INFO].cmds;
-		cmd_sets.count = 1;
-		cmd_sets.state = g_panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_READ_LOCKDOWN_INFO].state;
-		rc = dsi_panel_write_cmd_set(g_panel, &cmd_sets);
-		if (rc) {
-			pr_err("[%s][%s] failed to send cmds, rc=%d\n", __func__, g_panel->name, rc);
-			rc = -EIO;
-			goto done;
-		}
-
-		ld_read_config.enabled = 1;
-		ld_read_config.cmds_rlen = 8;
-		ld_read_config.read_cmd = cmd_sets;
-		ld_read_config.read_cmd.cmds = &cmd_sets.cmds[1];
-		rc = dsi_panel_read_cmd_set(g_panel, &ld_read_config);
-		if (rc <= 0) {
-			pr_err("[%s][%s] failed to read cmds, rc=%d\n", __func__, g_panel->name, rc);
-			rc = -EIO;
-			goto done;
-		}
-
-		for (i = 0; i < 8; i++) {
-			pr_info("[%s][%d]0x%02x", __func__, __LINE__, ld_read_config.rbuf[i]);
-			plockdowninfo[i] = ld_read_config.rbuf[i];
-		}
+	for(i = 0; i < 8; i++) {
+		pr_info("0x%x",  g_panel->lockdowninfo_read.lockdowninfo[i]);
+		plockdowninfo[i] = g_panel->lockdowninfo_read.lockdowninfo[i];
 	}
-
-done:
-	mutex_unlock(&g_panel->panel_lock);
+	rc = plockdowninfo[0];
 	return rc;
 }
 EXPORT_SYMBOL(dsi_panel_lockdown_info_read);
 
-void dsi_panel_doubleclick_enable(bool on)
+static void handle_dsi_read_data(struct dsi_panel *mi_panel, struct dsi_read_config *read_config)
 {
-	g_panel->tddi_doubleclick_flag = on;
+	int i = 0;
+	int param_nb = 0, write_len = 0;
+	u32 read_cnt = 0, bit_valide = 0;
+	u8 *pRead_data = NULL;
+	if (!mi_panel || !read_config) {
+		pr_err("invalid params\n");
+		return;
+	}
+	pRead_data = mi_panel->panel_read_data;
+	read_cnt = read_config->cmds_rlen;
+	bit_valide = read_config->valid_bits;
+	for (i = 0; i < read_cnt; i++) {
+		if ((bit_valide & 0x1) && ((pRead_data + 8) < (mi_panel->panel_read_data + BUF_LEN_MAX))) {
+			write_len = scnprintf(pRead_data, 8, "p%d=%d", param_nb,  read_config->rbuf[i]);
+			pRead_data += write_len;
+			param_nb ++;
+		}
+		bit_valide = bit_valide >> 1;
+	}
+	pr_info("read %s from panel\n", mi_panel->panel_read_data);
+	return;
 }
-EXPORT_SYMBOL(dsi_panel_doubleclick_enable);
+static ssize_t dsi_panel_xy_coordinate_read(struct dsi_panel *panel)
+{
+	int rc = 0;
+	struct dsi_panel_cmd_set cmd_sets = {0};
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+	while(!panel->cur_mode || !panel->cur_mode->priv_info || !panel->panel_initialized) {
+		pr_debug("[%s][%s] waitting for panel priv_info initialized!\n", __func__, panel->name);
+		msleep_interruptible(1000);
+	}
+	if (panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_READ_XY_COORDINATE].cmds) {
+		cmd_sets.cmds = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_READ_XY_COORDINATE].cmds;
+		cmd_sets.count = 1;
+		cmd_sets.state = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_READ_XY_COORDINATE].state;
+		rc = dsi_panel_write_cmd_set(panel, &cmd_sets);
+		if (rc) {
+			pr_err("[%s][%s] failed to send cmds, rc=%d\n", __func__, panel->name, rc);
+			rc = -EIO;
+			return rc;
+		}
+		panel->xy_coordinate_cmds.read_cmd = cmd_sets;
+		panel->xy_coordinate_cmds.read_cmd.cmds = &cmd_sets.cmds[1];
+		rc = dsi_panel_read_cmd_set(panel, &panel->xy_coordinate_cmds);
+		if (rc > 0)
+			handle_dsi_read_data(panel, &panel->xy_coordinate_cmds);
+		else
+			pr_err("[%s][%s] failed to read cmds, rc=%d\n", __func__, panel->name, rc);
+	}
+	return rc;
+}
+static ssize_t dsi_panel_max_luminance_read(struct dsi_panel *panel)
+{
+	int rc = 0;
+	struct dsi_panel_cmd_set cmd_sets = {0};
+	struct dsi_read_config r_cfg = {0};
+	if (!panel) {
+		pr_err("invalid params\n");
+		return -EINVAL;
+	}
+
+	while(!panel->cur_mode || !panel->cur_mode->priv_info || !panel->panel_initialized) {
+		pr_debug("[%s][%s] waitting for panel priv_info initialized!\n", __func__, panel->name);
+		msleep_interruptible(1000);
+	}
+	if (panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_MAX_LUMINANCE_WRITE].cmds) {
+		cmd_sets.cmds = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_MAX_LUMINANCE_WRITE].cmds;
+		cmd_sets.count = 1;
+		cmd_sets.state = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_MAX_LUMINANCE_WRITE].state;
+		rc = dsi_panel_write_cmd_set(panel, &cmd_sets);
+		if (rc) {
+			pr_err("[%s][%s] failed to send cmds, rc=%d\n", __func__, panel->name, rc);
+			rc = -EIO;
+			return rc;
+		}
+	}
+	if (panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_MAX_LUMINANCE_READ].cmds) {
+		r_cfg = panel->max_luminance_cmds;
+		r_cfg.read_cmd.cmds = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_MAX_LUMINANCE_READ].cmds;
+		r_cfg.read_cmd.count = 1;
+		r_cfg.read_cmd.state = panel->cur_mode->priv_info->cmd_sets[DSI_CMD_SET_MI_MAX_LUMINANCE_READ].state;
+		rc = dsi_panel_read_cmd_set(panel, &r_cfg);
+		if (rc > 0)
+			handle_dsi_read_data(panel, &r_cfg);
+		else
+			pr_err("[%s][%s] failed to read cmds, rc=%d\n", __func__, panel->name, rc);
+	}
+	return rc;
+}
 
 int dsi_panel_write_cmd_set(struct dsi_panel *panel,
 				struct dsi_panel_cmd_set *cmd_sets)
@@ -5970,3 +6140,9 @@ exit_ctrl:
 
 	return rc;
 }
+
+void dsi_panel_doubleclick_enable(bool on)
+{
+	g_panel->tddi_doubleclick_flag = on;
+}
+EXPORT_SYMBOL(dsi_panel_doubleclick_enable);
