@@ -1,7 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  */
 #include <linux/module.h>
 #include <linux/uaccess.h>
@@ -977,25 +985,6 @@ static int adreno_of_parse_pwrlevels(struct adreno_device *adreno_dev,
 	return 0;
 }
 
-static void adreno_of_get_bimc_iface_clk(struct adreno_device *adreno_dev,
-		struct device_node *node)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
-
-	/* Getting gfx-bimc-interface-clk frequency */
-	if (!of_property_read_u32(node, "qcom,gpu-bimc-interface-clk-freq",
-				&pwr->gpu_bimc_int_clk_freq)) {
-		pwr->gpu_bimc_int_clk = devm_clk_get(&device->pdev->dev,
-				"bimc_gpu_clk");
-		if (IS_ERR_OR_NULL(pwr->gpu_bimc_int_clk)) {
-			dev_err(&device->pdev->dev,
-					"dt: Couldn't get bimc_gpu_clk (%d)\n",
-					PTR_ERR(pwr->gpu_bimc_int_clk));
-			pwr->gpu_bimc_int_clk = NULL;
-		}
-	}
-}
 
 static void adreno_of_get_initial_pwrlevel(struct adreno_device *adreno_dev,
 		struct device_node *node)
@@ -1011,25 +1000,6 @@ static void adreno_of_get_initial_pwrlevel(struct adreno_device *adreno_dev,
 
 	pwr->active_pwrlevel = init_level;
 	pwr->default_pwrlevel = init_level;
-}
-
-static void adreno_of_get_limits(struct adreno_device *adreno_dev,
-		struct device_node *node)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct kgsl_pwrctrl *pwrctrl = &device->pwrctrl;
-	unsigned int throttle_level;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_LM) || of_property_read_u32(node,
-				"qcom,throttle-pwrlevel", &throttle_level))
-		return;
-
-	throttle_level = min(throttle_level, pwrctrl->num_pwrlevels - 1);
-
-	pwrctrl->throttle_mask = GENMASK(pwrctrl->num_pwrlevels - 1,
-			pwrctrl->num_pwrlevels - 1 - throttle_level);
-
-	set_bit(ADRENO_LM_CTRL, &adreno_dev->pwrctrl_flag);
 }
 
 static int adreno_of_get_legacy_pwrlevels(struct adreno_device *adreno_dev,

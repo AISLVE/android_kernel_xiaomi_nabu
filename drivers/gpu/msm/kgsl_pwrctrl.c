@@ -621,9 +621,9 @@ void kgsl_pwrctrl_update_l2pc(struct kgsl_device *device,
 }
 EXPORT_SYMBOL(kgsl_pwrctrl_update_l2pc);
 
-static ssize_t thermal_pwrlevel_store(struct device *dev,
-				struct device_attribute *attr,
-				 const char *buf, size_t count)
+static ssize_t kgsl_pwrctrl_thermal_pwrlevel_store(struct device *dev,
+					 struct device_attribute *attr,
+					 const char *buf, size_t count)
 {
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_pwrctrl *pwr;
@@ -927,10 +927,13 @@ static ssize_t kgsl_pwrctrl_gpuclk_show(struct device *dev,
 				    struct device_attribute *attr,
 				    char *buf)
 {
-	struct kgsl_device *device = dev_get_drvdata(dev);
+	struct kgsl_device *device = kgsl_device_from_dev(dev);
+	struct kgsl_pwrctrl *pwr;
 
-	return scnprintf(buf, PAGE_SIZE, "%ld\n",
-		kgsl_pwrctrl_active_freq(&device->pwrctrl));
+	if (device == NULL)
+		return 0;
+	pwr = &device->pwrctrl;
+	return snprintf(buf, PAGE_SIZE, "%ld\n", kgsl_pwrctrl_active_freq(pwr));
 }
 
 static ssize_t __timer_store(struct device *dev, struct device_attribute *attr,
@@ -1250,77 +1253,9 @@ static ssize_t kgsl_pwrctrl_bus_split_store(struct device *dev,
 	return count;
 }
 
-static ssize_t default_pwrlevel_show(struct device *dev,
-				struct device_attribute *attr, char *buf)
-{
-	struct kgsl_device *device = dev_get_drvdata(dev);
-
-	return scnprintf(buf, PAGE_SIZE, "%d\n",
-		device->pwrctrl.default_pwrlevel);
-}
-
-static ssize_t default_pwrlevel_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t count)
-{
-	struct kgsl_device *device = dev_get_drvdata(dev);
-	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
-	struct kgsl_pwrscale *pwrscale = &device->pwrscale;
-	int ret;
-	unsigned int level = 0;
-
-	ret = kgsl_sysfs_store(buf, &level);
-	if (ret)
-		return ret;
-
-	if (level > pwr->num_pwrlevels - 2)
-		goto done;
-
-	mutex_lock(&device->mutex);
-	pwr->default_pwrlevel = level;
-	pwrscale->gpu_profile.profile.initial_freq
-			= pwr->pwrlevels[level].gpu_freq;
-
-	mutex_unlock(&device->mutex);
-done:
-	return count;
-}
-
-
-static ssize_t popp_store(struct device *dev,
+static ssize_t kgsl_pwrctrl_default_pwrlevel_show(struct device *dev,
 					struct device_attribute *attr,
-					const char *buf, size_t count)
-{
-	unsigned int val = 0;
-	struct kgsl_device *device = dev_get_drvdata(dev);
-	int ret;
-
-	ret = kgsl_sysfs_store(buf, &val);
-	if (ret)
-		return ret;
-
-	mutex_lock(&device->mutex);
-	if (val)
-		set_bit(POPP_ON, &device->pwrscale.popp_state);
-	else
-		clear_bit(POPP_ON, &device->pwrscale.popp_state);
-	mutex_unlock(&device->mutex);
-
-	return count;
-}
-
-static ssize_t popp_show(struct device *dev,
-					   struct device_attribute *attr,
-					   char *buf)
-{
-	struct kgsl_device *device = dev_get_drvdata(dev);
-
-	return scnprintf(buf, PAGE_SIZE, "%d\n",
-		test_bit(POPP_ON, &device->pwrscale.popp_state));
-}
-
-static ssize_t gpu_model_show(struct device *dev,
-			struct device_attribute *attr, char *buf)
+					char *buf)
 {
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 
@@ -1524,9 +1459,12 @@ static ssize_t kgsl_pwrctrl_clock_mhz_show(struct device *dev,
 				    struct device_attribute *attr,
 				    char *buf)
 {
-	struct kgsl_device *device = dev_get_drvdata(dev);
+	struct kgsl_device *device = kgsl_device_from_dev(dev);
 
-	return scnprintf(buf, PAGE_SIZE, "%ld\n",
+	if (device == NULL)
+		return 0;
+
+	return snprintf(buf, PAGE_SIZE, "%ld\n",
 			kgsl_pwrctrl_active_freq(&device->pwrctrl) / 1000000);
 }
 
@@ -1618,66 +1556,108 @@ static ssize_t kgsl_pwrctrl_pwrscale_show(struct device *dev,
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
 	struct kgsl_pwrscale *psc;
 
-	return scnprintf(buf, PAGE_SIZE, "%u\n", psc->enabled);
+	if (device == NULL)
+		return 0;
+	psc = &device->pwrscale;
+
+	return snprintf(buf, PAGE_SIZE, "%u\n", psc->enabled);
 }
 
-static DEVICE_ATTR_RO(temp);
-static DEVICE_ATTR_RW(gpuclk);
-static DEVICE_ATTR_RW(max_gpuclk);
-static DEVICE_ATTR_RW(idle_timer);
-static DEVICE_ATTR_RO(gpubusy);
-static DEVICE_ATTR_RO(gpu_available_frequencies);
-static DEVICE_ATTR_RO(gpu_clock_stats);
-static DEVICE_ATTR_RW(max_pwrlevel);
-static DEVICE_ATTR_RW(min_pwrlevel);
-static DEVICE_ATTR_RW(thermal_pwrlevel);
-static DEVICE_ATTR_RO(num_pwrlevels);
-static DEVICE_ATTR_RW(pmqos_active_latency);
-static DEVICE_ATTR_RO(reset_count);
-static DEVICE_ATTR_RW(force_clk_on);
-static DEVICE_ATTR_RW(force_bus_on);
-static DEVICE_ATTR_RW(force_rail_on);
-static DEVICE_ATTR_RW(bus_split);
-static DEVICE_ATTR_RW(default_pwrlevel);
-static DEVICE_ATTR_RW(popp);
-static DEVICE_ATTR_RW(force_no_nap);
-static DEVICE_ATTR_RO(gpu_model);
-static DEVICE_ATTR_RO(gpu_busy_percentage);
-static DEVICE_ATTR_RW(min_clock_mhz);
-static DEVICE_ATTR_RW(max_clock_mhz);
-static DEVICE_ATTR_RO(clock_mhz);
-static DEVICE_ATTR_RO(freq_table_mhz);
-static DEVICE_ATTR_RW(pwrscale);
+static DEVICE_ATTR(temp, 0444, kgsl_pwrctrl_temp_show, NULL);
+static DEVICE_ATTR(gpuclk, 0644, kgsl_pwrctrl_gpuclk_show,
+	kgsl_pwrctrl_gpuclk_store);
+static DEVICE_ATTR(max_gpuclk, 0644, kgsl_pwrctrl_max_gpuclk_show,
+	kgsl_pwrctrl_max_gpuclk_store);
+static DEVICE_ATTR(idle_timer, 0644, kgsl_pwrctrl_idle_timer_show,
+	kgsl_pwrctrl_idle_timer_store);
+static DEVICE_ATTR(gpubusy, 0444, kgsl_pwrctrl_gpubusy_show,
+	NULL);
+static DEVICE_ATTR(gpu_available_frequencies, 0444,
+	kgsl_pwrctrl_gpu_available_frequencies_show,
+	NULL);
+static DEVICE_ATTR(gpu_clock_stats, 0444,
+	kgsl_pwrctrl_gpu_clock_stats_show,
+	NULL);
+static DEVICE_ATTR(max_pwrlevel, 0644,
+	kgsl_pwrctrl_max_pwrlevel_show,
+	kgsl_pwrctrl_max_pwrlevel_store);
+static DEVICE_ATTR(min_pwrlevel, 0644,
+	kgsl_pwrctrl_min_pwrlevel_show,
+	kgsl_pwrctrl_min_pwrlevel_store);
+static DEVICE_ATTR(thermal_pwrlevel, 0644,
+	kgsl_pwrctrl_thermal_pwrlevel_show,
+	kgsl_pwrctrl_thermal_pwrlevel_store);
+static DEVICE_ATTR(num_pwrlevels, 0444,
+	kgsl_pwrctrl_num_pwrlevels_show,
+	NULL);
+static DEVICE_ATTR(pmqos_active_latency, 0644,
+	kgsl_pwrctrl_pmqos_active_latency_show,
+	kgsl_pwrctrl_pmqos_active_latency_store);
+static DEVICE_ATTR(reset_count, 0444,
+	kgsl_pwrctrl_reset_count_show,
+	NULL);
+static DEVICE_ATTR(force_clk_on, 0644,
+	kgsl_pwrctrl_force_clk_on_show,
+	kgsl_pwrctrl_force_clk_on_store);
+static DEVICE_ATTR(force_bus_on, 0644,
+	kgsl_pwrctrl_force_bus_on_show,
+	kgsl_pwrctrl_force_bus_on_store);
+static DEVICE_ATTR(force_rail_on, 0644,
+	kgsl_pwrctrl_force_rail_on_show,
+	kgsl_pwrctrl_force_rail_on_store);
+static DEVICE_ATTR(bus_split, 0644,
+	kgsl_pwrctrl_bus_split_show,
+	kgsl_pwrctrl_bus_split_store);
+static DEVICE_ATTR(default_pwrlevel, 0644,
+	kgsl_pwrctrl_default_pwrlevel_show,
+	kgsl_pwrctrl_default_pwrlevel_store);
+static DEVICE_ATTR(popp, 0644, kgsl_popp_show, kgsl_popp_store);
+static DEVICE_ATTR(force_no_nap, 0644,
+	kgsl_pwrctrl_force_no_nap_show,
+	kgsl_pwrctrl_force_no_nap_store);
+static DEVICE_ATTR(gpu_model, 0444, kgsl_pwrctrl_gpu_model_show, NULL);
+static DEVICE_ATTR(gpu_busy_percentage, 0444,
+	kgsl_pwrctrl_gpu_busy_percentage_show, NULL);
+static DEVICE_ATTR(min_clock_mhz, 0644, kgsl_pwrctrl_min_clock_mhz_show,
+	kgsl_pwrctrl_min_clock_mhz_store);
+static DEVICE_ATTR(max_clock_mhz, 0644, kgsl_pwrctrl_max_clock_mhz_show,
+	kgsl_pwrctrl_max_clock_mhz_store);
+static DEVICE_ATTR(clock_mhz, 0444, kgsl_pwrctrl_clock_mhz_show, NULL);
+static DEVICE_ATTR(freq_table_mhz, 0444,
+	kgsl_pwrctrl_freq_table_mhz_show, NULL);
+static DEVICE_ATTR(pwrscale, 0644,
+	kgsl_pwrctrl_pwrscale_show,
+	kgsl_pwrctrl_pwrscale_store);
 
-static const struct attribute *pwrctrl_attr_list[] = {
-	&dev_attr_gpuclk.attr,
-	&dev_attr_max_gpuclk.attr,
-	&dev_attr_idle_timer.attr,
-	&dev_attr_gpubusy.attr,
-	&dev_attr_gpu_available_frequencies.attr,
-	&dev_attr_gpu_clock_stats.attr,
-	&dev_attr_max_pwrlevel.attr,
-	&dev_attr_min_pwrlevel.attr,
-	&dev_attr_thermal_pwrlevel.attr,
-	&dev_attr_num_pwrlevels.attr,
-	&dev_attr_pmqos_active_latency.attr,
-	&dev_attr_reset_count.attr,
-	&dev_attr_force_clk_on.attr,
-	&dev_attr_force_bus_on.attr,
-	&dev_attr_force_rail_on.attr,
-	&dev_attr_force_no_nap.attr,
-	&dev_attr_bus_split.attr,
-	&dev_attr_default_pwrlevel.attr,
-	&dev_attr_popp.attr,
-	&dev_attr_gpu_model.attr,
-	&dev_attr_gpu_busy_percentage.attr,
-	&dev_attr_min_clock_mhz.attr,
-	&dev_attr_max_clock_mhz.attr,
-	&dev_attr_clock_mhz.attr,
-	&dev_attr_freq_table_mhz.attr,
-	&dev_attr_temp.attr,
-	&dev_attr_pwrscale.attr,
-	NULL,
+static const struct device_attribute *pwrctrl_attr_list[] = {
+	&dev_attr_gpuclk,
+	&dev_attr_max_gpuclk,
+	&dev_attr_idle_timer,
+	&dev_attr_gpubusy,
+	&dev_attr_gpu_available_frequencies,
+	&dev_attr_gpu_clock_stats,
+	&dev_attr_max_pwrlevel,
+	&dev_attr_min_pwrlevel,
+	&dev_attr_thermal_pwrlevel,
+	&dev_attr_num_pwrlevels,
+	&dev_attr_pmqos_active_latency,
+	&dev_attr_reset_count,
+	&dev_attr_force_clk_on,
+	&dev_attr_force_bus_on,
+	&dev_attr_force_rail_on,
+	&dev_attr_force_no_nap,
+	&dev_attr_bus_split,
+	&dev_attr_default_pwrlevel,
+	&dev_attr_popp,
+	&dev_attr_gpu_model,
+	&dev_attr_gpu_busy_percentage,
+	&dev_attr_min_clock_mhz,
+	&dev_attr_max_clock_mhz,
+	&dev_attr_clock_mhz,
+	&dev_attr_freq_table_mhz,
+	&dev_attr_temp,
+	&dev_attr_pwrscale,
+	NULL
 };
 
 struct sysfs_link {
@@ -2371,7 +2351,7 @@ int kgsl_pwrctrl_init(struct kgsl_device *device)
 
 	pwr->power_flags = 0;
 
-	of_property_read_u32(device->pdev->dev.of_node, "qcom,l2pc-cpu-mask",
+	kgsl_property_read_u32(device, "qcom,l2pc-cpu-mask",
 			&pwr->l2pc_cpus_mask);
 
 	pwr->l2pc_update_queue = of_property_read_bool(

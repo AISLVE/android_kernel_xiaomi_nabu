@@ -1,7 +1,15 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- * Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2018, The Linux Foundation. All rights reserved.
  * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  */
 #include <linux/module.h>
 #include <linux/uaccess.h>
@@ -136,9 +144,6 @@ void adreno_perfcounter_restore(struct adreno_device *adreno_dev)
 	struct adreno_perfcount_group *group;
 	unsigned int counter, groupid;
 
-	if (adreno_is_a702(adreno_dev))
-		return;
-
 	/* Do not save/restore if not requested */
 	if (counters == NULL || !adreno_dev->perfcounter)
 		return;
@@ -172,9 +177,6 @@ inline void adreno_perfcounter_save(struct adreno_device *adreno_dev)
 	struct adreno_perfcounters *counters = ADRENO_PERFCOUNTERS(adreno_dev);
 	struct adreno_perfcount_group *group;
 	unsigned int counter, groupid;
-
-	if (adreno_is_a702(adreno_dev))
-		return;
 
 	/* Do not save/restore if not requested */
 	if (counters == NULL || !adreno_dev->perfcounter)
