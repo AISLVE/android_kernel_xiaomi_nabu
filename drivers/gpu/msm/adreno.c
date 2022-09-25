@@ -41,6 +41,8 @@
 #undef MODULE_PARAM_PREFIX
 #define MODULE_PARAM_PREFIX "adreno."
 
+unsigned int adreno_wake_timeout = 100;
+
 static bool nopreempt;
 module_param(nopreempt, bool, 0444);
 MODULE_PARM_DESC(nopreempt, "Disable GPU preemption");

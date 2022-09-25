@@ -208,6 +208,8 @@ bool kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pt, uint64_t gpuaddr,
 int kgsl_mmu_get_region(struct kgsl_pagetable *pagetable,
 		uint64_t gpuaddr, uint64_t size);
 
+enum kgsl_mmutype kgsl_mmu_get_mmutype(struct kgsl_device *device);
+
 int kgsl_mmu_find_region(struct kgsl_pagetable *pagetable,
 		uint64_t region_start, uint64_t region_end,
 		uint64_t *gpuaddr, uint64_t size, unsigned int align);

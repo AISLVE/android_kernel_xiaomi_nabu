@@ -484,6 +484,7 @@ static ADRENO_SYSFS_BOOL(gpu_llc_slice_enable);
 static ADRENO_SYSFS_BOOL(gpuhtw_llc_slice_enable);
 
 static DEVICE_INT_ATTR(wake_nice, 0644, adreno_wake_nice);
+static DEVICE_INT_ATTR(wake_timeout, 0644, adreno_wake_timeout);
 
 static ADRENO_SYSFS_BOOL(sptp_pc);
 static ADRENO_SYSFS_BOOL(lm);
@@ -496,7 +497,7 @@ static ADRENO_SYSFS_BOOL(acd);
 static ADRENO_SYSFS_BOOL(perfcounter);
 
 
-static const struct attribute *_attr_list[] = {
+static const struct attribute  *_attr_list[] = {
 	&adreno_attr_ft_policy.attr.attr,
 	&adreno_attr_ft_pagefault_policy.attr.attr,
 	&adreno_attr_ft_long_ib_detect.attr.attr,
@@ -652,7 +653,7 @@ void adreno_sysfs_close(struct adreno_device *adreno_dev)
 	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
 
 	ppd_sysfs_close(adreno_dev);
-	kgsl_remove_device_sysfs_files(device->dev, _attr_list);
+	//kgsl_remove_device_sysfs_files(device->dev, _attr_list);
 }
 
 /**

@@ -34,6 +34,8 @@
 #define ADRENO_DEVICE(device) \
 		container_of(device, struct adreno_device, dev)
 
+extern unsigned int adreno_wake_timeout;
+
 /* KGSL_DEVICE - given an adreno_device, return the KGSL device struct */
 #define KGSL_DEVICE(_dev) (&((_dev)->dev))
 
@@ -528,7 +530,7 @@ struct adreno_device {
 	struct kgsl_device dev;    /* Must be first field in this struct */
 	unsigned long priv;
 	unsigned int chipid;
-	bool perfcounter;
+	bool gaming_bin;
 	unsigned long gmem_base;
 	unsigned long gmem_size;
 	unsigned long uche_gmem_base;
