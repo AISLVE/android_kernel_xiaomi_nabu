@@ -13,9 +13,9 @@ KERNEL_CONFIG="nabu_defconfig" \
 || KERNEL_CONFIG="nabu_defconfig"
 ZIP_KERNEL_STR="coreLinux"
 ZIP_DEVICE_NAME="apollo"
-ZIP_PREFIX_STR="TwistedKernel-v1.0"
-export KBUILD_BUILD_USER="nob0dy"
-export KBUILD_BUILD_HOST="sigmaS0r"
+ZIP_PREFIX_STR="TwistedKernel-v2.0"
+export KBUILD_BUILD_USER="TwistedKernel"
+export KBUILD_BUILD_HOST="TwistedHaxor"
 USER_OVERRIDE="root"
 IS_WSL_USER="0"
 if [[ $USER == "$USER_OVERRIDE" ]]; then

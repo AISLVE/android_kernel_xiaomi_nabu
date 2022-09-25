@@ -535,6 +535,7 @@ struct adreno_device {
 	struct kgsl_device dev;    /* Must be first field in this struct */
 	unsigned long priv;
 	unsigned int chipid;
+	bool perfcounter;
 	unsigned long gmem_base;
 	unsigned long gmem_size;
 	unsigned long uche_gmem_base;

@@ -136,8 +136,8 @@ void adreno_perfcounter_restore(struct adreno_device *adreno_dev)
 	struct adreno_perfcount_group *group;
 	unsigned int counter, groupid;
 
-	if (adreno_is_a702(adreno_dev))
-		return;
+	/*if (adreno_is_a702(adreno_dev))
+		return;*/
 
 	/* Do not save/restore if not requested */
 	if (counters == NULL || !adreno_dev->perfcounter)
@@ -173,8 +173,8 @@ inline void adreno_perfcounter_save(struct adreno_device *adreno_dev)
 	struct adreno_perfcount_group *group;
 	unsigned int counter, groupid;
 
-	if (adreno_is_a702(adreno_dev))
-		return;
+	/*if (adreno_is_a702(adreno_dev))
+		return;*/
 
 	/* Do not save/restore if not requested */
 	if (counters == NULL || !adreno_dev->perfcounter)
