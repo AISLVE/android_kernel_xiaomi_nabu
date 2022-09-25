@@ -892,25 +892,6 @@ static void adreno_of_get_limits(struct adreno_device *adreno_dev,
 	set_bit(ADRENO_LM_CTRL, &adreno_dev->pwrctrl_flag);
 }
 
-static void adreno_of_get_limits(struct adreno_device *adreno_dev,
-		struct device_node *node)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct kgsl_pwrctrl *pwrctrl = &device->pwrctrl;
-	unsigned int throttle_level;
-
-	if (!ADRENO_FEATURE(adreno_dev, ADRENO_LM) || of_property_read_u32(node,
-				"qcom,throttle-pwrlevel", &throttle_level))
-		return;
-
-	throttle_level = min(throttle_level, pwrctrl->num_pwrlevels - 1);
-
-	pwrctrl->throttle_mask = GENMASK(pwrctrl->num_pwrlevels - 1,
-			pwrctrl->num_pwrlevels - 1 - throttle_level);
-
-	set_bit(ADRENO_LM_CTRL, &adreno_dev->pwrctrl_flag);
-}
-
 static int adreno_of_get_legacy_pwrlevels(struct adreno_device *adreno_dev,
 		struct device_node *parent)
 {

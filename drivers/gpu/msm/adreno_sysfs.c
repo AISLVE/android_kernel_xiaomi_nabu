@@ -493,7 +493,6 @@ static ADRENO_SYSFS_BOOL(throttling);
 static ADRENO_SYSFS_BOOL(ifpc);
 static ADRENO_SYSFS_RO_U32(ifpc_count);
 static ADRENO_SYSFS_BOOL(acd);
-static ADRENO_SYSFS_BOOL(perfcounter);
 
 /* Add a ppd directory for controlling different knobs from sysfs */
 struct adreno_ppd_attribute {
