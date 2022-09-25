@@ -64,8 +64,7 @@ struct kgsl_pwr_history {
  * @enabled - Whether or not power scaling is enabled
  * @time - Last submitted sample timestamp
  * @on_time - Timestamp when gpu busy begins
- * @freq_change_time - Timestamp of last freq change or popp update
- * @nh - Notifier for the partner devfreq bus device
+ * @freq_change_time - Timestamp of last freq change
  * @devfreq_wq - Main devfreq workqueue
  * @devfreq_suspend_ws - Pass device suspension to devfreq
  * @devfreq_resume_ws - Pass device resume to devfreq
