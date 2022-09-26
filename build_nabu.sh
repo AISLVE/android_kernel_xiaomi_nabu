@@ -48,7 +48,7 @@ RAMOOPS_MEMRESERVE="0"
 DTC_EXT_FOR_DTC="0"
 
 OUT_BOOT_DIR="$KERNEL_ROOT_DIR/out/arch/$TARGET_ARCH/boot"
-DTB_DTBO_DIR="$OUT_BOOT_DIR/dts/vendor/qcom"
+DTB_DTBO_DIR="$OUT_BOOT_DIR/dts/qcom"
 
 TOOLCHAIN_DIR="$KERNEL_ROOT_DIR/../../toolchains"
 
@@ -694,7 +694,7 @@ build() {
 			make_dtboimg
 		fi
 				echo -e "\nCopying dtb..."
-				  cat $DTB_DTBO_DIR/*.dtb  > $OUT_BOOT_DIR/dt.img 
+				  cat $DTB_DTBO_DIR/*.dtb  > $OUT_BOOT_DIR/dtb.img 
 		exit
 	fi
 
@@ -832,17 +832,17 @@ build_zip() {
 		fi
 
 		if [[ ! -f $OUT_BOOT_DIR/dtbo.img ]]; then
-			if [[ ! -f $OUT_BOOT_DIR/dt.img ]]; then
+			if [[ ! -f $OUT_BOOT_DIR/dtb.img ]]; then
 				echo -e "\nUsing appended dtb..."
 			else
-			     cat $DTB_DTBO_DIR/*.dtb  > $ANYKERNEL_DIR/dt.img
+			     cat $DTB_DTBO_DIR/*.dtb  > $ANYKERNEL_DIR/dtb.img
 			fi
 		else
 			cp "$OUT_BOOT_DIR"/dtbo.img "$ANYKERNEL_DIR"
 		fi
 
 				echo -e "\nCopying dtb..."
-				cat $DTB_DTBO_DIR/*.dtb  > $ANYKERNEL_DIR/dt.img
+				cat $DTB_DTBO_DIR/*.dtb  > $ANYKERNEL_DIR/dtb.img
 
 		ZIP_PREFIX_KVER=$(grep Linux "$KERNEL_ROOT_DIR"/out/.config | cut -f 3 -d " ")
 		ZIP_POSTFIX_DATE=$(date +%d-%h-%Y-%R:%S | sed "s/:/./g")
