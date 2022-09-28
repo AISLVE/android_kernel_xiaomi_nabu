@@ -41,7 +41,6 @@
 #include <linux/err.h>
 #include <linux/mfd/spk-id.h>
 #include <linux/firmware.h>
-
 #include "wm_adsp.h"
 #include "cs35l41.h"
 #include <sound/cs35l41.h>
@@ -1889,33 +1888,7 @@ static struct snd_soc_codec_driver soc_codec_dev_cs35l41 = {
 	.idle_bias_off = true,
 };
 
-int spk_id_get(struct device_node *np)
-{
-	int id;
-	int state;
 
-	state = spk_id_get_pin_3state(np);
-	if (state < 0) {
-		pr_err("%s: Can not get id pin state, %d\n", __func__, state);
-		return VENDOR_ID_NONE;
-	}
-
-	switch (state) {
-	case PIN_PULL_DOWN:
-		id = VENDOR_ID_AAC;
-		break;
-	case PIN_PULL_UP:
-		id = VENDOR_ID_UNKNOWN;
-		break;
-	case PIN_FLOAT:
-		id = VENDOR_ID_GOER;
-		break;
-	default:
-		id = VENDOR_ID_UNKNOWN;
-		break;
-	}
-	return id;
-}
 
 static int cs35l41_handle_of_data(struct device *dev,
 				  struct cs35l41_platform_data *pdata,
