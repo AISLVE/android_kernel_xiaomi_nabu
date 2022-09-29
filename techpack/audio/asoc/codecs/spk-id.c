@@ -33,7 +33,7 @@ struct spk_id_info {
 };
 
 
-/*static struct spk_id_info *spk_id_get_info(struct device_node *np)
+static struct spk_id_info *spk_id_get_info(struct device_node *np)
 {
 	struct platform_device *pdev;
 	struct spk_id_info *info;
@@ -54,7 +54,7 @@ struct spk_id_info {
 		dev_err(&pdev->dev, "%s: cannot find spk id info\n", __func__);
 
 	return info;
-}*/
+}
 
 int spk_id_get_pin_3state(struct device_node *np)
 {
@@ -202,34 +202,6 @@ static struct platform_driver spk_id_driver = {
 	.probe = spk_id_probe,
 	.remove = spk_id_remove,
 };
-
-int spk_id_get(struct device_node *np)
-{
-	int id;
-	int state;
-
-	state = spk_id_get_pin_3state(np);
-	if (state < 0) {
-		pr_err("%s: Can not get id pin state, %d\n", __func__, state);
-		return VENDOR_ID_NONE;
-	}
-
-	switch (state) {
-	case PIN_PULL_DOWN:
-		id = VENDOR_ID_AAC;
-		break;
-	case PIN_PULL_UP:
-		id = VENDOR_ID_UNKNOWN;
-		break;
-	case PIN_FLOAT:
-		id = VENDOR_ID_GOER;
-		break;
-	default:
-		id = VENDOR_ID_UNKNOWN;
-		break;
-	}
-	return id;
-}
 //module_platform_driver(spk_id_driver);
 
 static int __init spk_id_init(void)
