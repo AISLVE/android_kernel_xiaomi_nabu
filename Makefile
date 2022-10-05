@@ -292,8 +292,6 @@ SUBARCH := $(shell uname -m | sed -e s/i.86/x86/ -e s/x86_64/x86/ \
 
 # Make sure the kernel could be compiled successfully
 LINK_DUM :=$(shell if [ ! -L "$(abspath $(srctree))/include/linux/rtmm.h" ]; then \
-		ln -s -f $(abspath $(srctree))/include/dum/rtmm.h $(abspath $(srctree))/include/linux/rtmm.h; \
-		ln -s -f $(abspath $(srctree))/include/dum/ktrace.h $(abspath $(srctree))/include/linux/ktrace.h; \
 		mkdir -p $(abspath $(srctree))/drivers/staging/rtmm; \
 		touch $(abspath $(srctree))/drivers/staging/rtmm/Kconfig; \
 		touch $(abspath $(srctree))/drivers/staging/rtmm/Makefile; \
