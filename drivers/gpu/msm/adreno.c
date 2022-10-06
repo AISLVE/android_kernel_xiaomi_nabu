@@ -1,7 +1,14 @@
-// SPDX-License-Identifier: GPL-2.0-only
-/*
- * Copyright (c) 2002,2007-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+/* Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
  */
 #include <linux/module.h>
 #include <linux/uaccess.h>
@@ -40,8 +47,6 @@
 
 #undef MODULE_PARAM_PREFIX
 #define MODULE_PARAM_PREFIX "adreno."
-
-unsigned int adreno_wake_timeout = 100;
 
 static bool nopreempt;
 module_param(nopreempt, bool, 0444);
@@ -840,25 +845,6 @@ static int adreno_of_parse_pwrlevels(struct adreno_device *adreno_dev,
 	return 0;
 }
 
-static void adreno_of_get_bimc_iface_clk(struct adreno_device *adreno_dev,
-		struct device_node *node)
-{
-	struct kgsl_device *device = KGSL_DEVICE(adreno_dev);
-	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
-
-	/* Getting gfx-bimc-interface-clk frequency */
-	if (!of_property_read_u32(node, "qcom,gpu-bimc-interface-clk-freq",
-				&pwr->gpu_bimc_int_clk_freq)) {
-		pwr->gpu_bimc_int_clk = devm_clk_get(&device->pdev->dev,
-				"bimc_gpu_clk");
-		if (IS_ERR_OR_NULL(pwr->gpu_bimc_int_clk)) {
-			dev_err(&device->pdev->dev,
-					"dt: Couldn't get bimc_gpu_clk (%d)\n",
-					PTR_ERR(pwr->gpu_bimc_int_clk));
-			pwr->gpu_bimc_int_clk = NULL;
-		}
-	}
-}
 
 static void adreno_of_get_initial_pwrlevel(struct adreno_device *adreno_dev,
 		struct device_node *node)
@@ -873,7 +859,6 @@ static void adreno_of_get_initial_pwrlevel(struct adreno_device *adreno_dev,
 		init_level = 1;
 
 	pwr->active_pwrlevel = init_level;
-	pwr->default_pwrlevel = init_level;
 }
 
 static int adreno_of_get_legacy_pwrlevels(struct adreno_device *adreno_dev,
@@ -1029,7 +1014,7 @@ static int adreno_of_get_power(struct adreno_device *adreno_dev,
 		device->pwrctrl.pm_qos_wakeup_latency = 101;
 
 	if (of_property_read_u32(node, "qcom,idle-timeout", &timeout))
-		timeout = 58;
+		timeout = 80;
 
 	device->pwrctrl.interval_timeout = msecs_to_jiffies(timeout);
 
@@ -1311,8 +1296,6 @@ static int adreno_probe(struct platform_device *pdev)
 
 	adreno_debugfs_init(adreno_dev);
 	adreno_profile_init(adreno_dev);
-
-	adreno_dev->perfcounter = false;
 
 	adreno_sysfs_init(adreno_dev);
 
@@ -1623,6 +1606,10 @@ static int adreno_init(struct kgsl_device *device)
 	}
 
 	place_marker("M - DRIVER ADRENO Ready");
+	if (adreno_is_a640v1(adreno_dev) || device->pwrscale.devfreqptr->max_freq == 810000000) {
+		if (675000000 >= device->pwrscale.devfreqptr->min_freq)
+			device->pwrscale.devfreqptr->max_freq = 675000000;
+	}
 
 	return 0;
 }
@@ -3373,11 +3360,7 @@ int adreno_gmu_fenced_write(struct adreno_device *adreno_dev,
 		if (!(status & fence_mask))
 			return 0;
 		/* Wait a small amount of time before trying again */
-		if (in_atomic())
-			udelay(GMU_CORE_WAKEUP_DELAY_US);
-		else
-			usleep_range(GMU_CORE_WAKEUP_DELAY_US,
-				     3 * GMU_CORE_WAKEUP_DELAY_US);
+		udelay(GMU_CORE_WAKEUP_DELAY_US);
 
 		/* Try to write the fenced register again */
 		adreno_writereg(adreno_dev, offset, val);

@@ -931,7 +931,7 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 		page_count = kgsl_pool_alloc_page(&page_size,
 					memdesc->pages + pcount,
 					len_alloc - pcount,
-					&align, memdesc->dev);
+					&align);
 		if (page_count <= 0) {
 			if (page_count == -EAGAIN)
 				continue;
@@ -1048,7 +1048,6 @@ void kgsl_sharedmem_free(struct kgsl_memdesc *memdesc)
 	if (memdesc->sgt) {
 		sg_free_table(memdesc->sgt);
 		kfree(memdesc->sgt);
-		memdesc->sgt = NULL;
 	}
 
 	memdesc->page_count = 0;
