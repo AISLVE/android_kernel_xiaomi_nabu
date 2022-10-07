@@ -1511,6 +1511,13 @@ static inline u32 ufshcd_vops_get_scale_down_gear(struct ufs_hba *hba)
 	return UFS_HS_G1;
 }
 
+static inline unsigned int ufshcd_vops_get_user_cap_mode(struct ufs_hba *hba)
+{
+	if (hba->var && hba->var->vops->get_user_cap_mode)
+		return hba->var->vops->get_user_cap_mode(hba);
+	return 0;
+}
+
 static inline int ufshcd_vops_set_bus_vote(struct ufs_hba *hba, bool on)
 {
 	if (hba->var && hba->var->vops && hba->var->vops->set_bus_vote)
