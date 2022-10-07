@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020, Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -67,6 +68,7 @@ void ufshcd_crypto_qti_enable(struct ufs_hba *hba)
 	}
 
 	ufshcd_crypto_enable_spec(hba);
+
 }
 
 void ufshcd_crypto_qti_disable(struct ufs_hba *hba)
@@ -99,25 +101,26 @@ static int ufshcd_crypto_qti_keyslot_program(struct keyslot_manager *ksm,
 	      hba->crypto_cap_array[crypto_alg_id].sdus_mask))
 		return -EINVAL;
 
-	if (!hba->pm_op_in_progress)
-		pm_runtime_get_sync(hba->dev);
+	pm_runtime_get_sync(hba->dev);
 	err = ufshcd_hold(hba, false);
 	if (err) {
 		pr_err("%s: failed to enable clocks, err %d\n", __func__, err);
-		goto out;
+		return err;
 	}
 
 	err = crypto_qti_keyslot_program(hba->crypto_vops->priv, key, slot,
 					data_unit_mask, crypto_alg_id);
-	if (err)
+	if (err) {
 		pr_err("%s: failed with error %d\n", __func__, err);
+		ufshcd_release(hba, false);
+		pm_runtime_put_sync(hba->dev);
+		return err;
+	}
 
 	ufshcd_release(hba, false);
+	pm_runtime_put_sync(hba->dev);
 
-out:
-	if (!hba->pm_op_in_progress)
-		pm_runtime_put_sync(hba->dev);
-	return err;
+	return 0;
 }
 
 static int ufshcd_crypto_qti_keyslot_evict(struct keyslot_manager *ksm,
@@ -238,8 +241,7 @@ static int ufshcd_hba_init_crypto_qti_spec(struct ufs_hba *hba,
 			hba->crypto_cap_array[cap_idx].sdus_mask * 512;
 	}
 
-	hba->ksm = keyslot_manager_create(hba->dev, ufshcd_num_keyslots(hba),
-					  ksm_ops,
+	hba->ksm = keyslot_manager_create(ufshcd_num_keyslots(hba), ksm_ops,
 					  BLK_CRYPTO_FEATURE_STANDARD_KEYS |
 					  BLK_CRYPTO_FEATURE_WRAPPED_KEYS,
 					  crypto_modes_supported, hba);
@@ -273,9 +275,7 @@ int ufshcd_crypto_qti_init_crypto(struct ufs_hba *hba,
 	mmio_base = devm_ioremap_resource(hba->dev, mem_res);
 	if (IS_ERR(mmio_base)) {
 		pr_err("%s: Unable to get ufs_crypto mmio base\n", __func__);
-		hba->caps &= ~UFSHCD_CAP_CRYPTO;
-		hba->quirks |= UFSHCD_QUIRK_BROKEN_CRYPTO;
-		return err;
+		return PTR_ERR(mmio_base);
 	}
 
 	err = ufshcd_hba_init_crypto_qti_spec(hba, &ufshcd_crypto_qti_ksm_ops);
