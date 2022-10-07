@@ -54,7 +54,7 @@ struct task_struct *kthread_create_on_cpu(int (*threadfn)(void *data),
  *
  * Same as kthread_create(), but takes a perf cpumask to affine to.
  */
-#define kthread_run_perf_critical(perfmask, threadfn, data, namefmt, ...)  \
+/*#define kthread_run_perf_critical(perfmask, threadfn, data, namefmt, ...)  \
 ({									   \
 	struct task_struct *__k						   \
 		= kthread_create(threadfn, data, namefmt, ## __VA_ARGS__); \
@@ -66,7 +66,23 @@ struct task_struct *kthread_create_on_cpu(int (*threadfn)(void *data),
 		wake_up_process(__k);					   \
 	}								   \
 	__k;								   \
+})*/
+
+#define kthread_run_perf_critical(perfmask, threadfn, data, namefmt, ...)  \
+({									   \
+	struct task_struct *__k						   \
+		= kthread_create(threadfn, data, namefmt, ## __VA_ARGS__); \
+	if (!IS_ERR(__k)) {						   \
+		__k->flags |= PF_PERF_CRITICAL;				   \
+		BUILD_BUG_ON(perfmask != cpu_lp_mask &&			   \
+			     perfmask != cpu_perf_mask &&		   \
+			     perfmask != cpu_prime_mask);		   \
+		kthread_bind_mask(__k, perfmask);			   \
+		wake_up_process(__k);					   \
+	}								   \
+	__k;								   \
 })
+
 
 void free_kthread_struct(struct task_struct *k);
 void kthread_bind(struct task_struct *k, unsigned int cpu);
