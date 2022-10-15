@@ -342,10 +342,12 @@ void cpu_limits_set_level(unsigned int cpu, unsigned int max_freq)
 {
 	struct cpufreq_cooling_device *cpufreq_cdev;
 	struct thermal_cooling_device *cdev;
+	unsigned int cdev_cpu;
 	unsigned int level;
 
 	list_for_each_entry(cpufreq_cdev, &cpufreq_cdev_list, node) {
-		if (cpufreq_cdev->id == cpu) {
+		sscanf(cpufreq_cdev->cdev->type, "thermal-cpufreq-%d", &cdev_cpu);
+		if (cdev_cpu == cpu) {
 			for (level = 0; level < cpufreq_cdev->max_level; level++) {
 				int target_freq = cpufreq_cdev->freq_table[level].frequency;
 				if (max_freq >= target_freq) {
@@ -832,9 +834,9 @@ static int cpufreq_get_requested_power(struct thermal_cooling_device *cdev,
 	}
 
 	if (load_cpu) {
-		trace_thermal_power_cpu_get_power(policy->related_cpus, freq,
-						  load_cpu, i, dynamic_power,
-						  static_power);
+		//trace_thermal_power_cpu_get_power(policy->related_cpus, freq,
+		//				  load_cpu, i, dynamic_power,
+		//				  static_power);
 
 		kfree(load_cpu);
 	}
@@ -926,8 +928,8 @@ static int cpufreq_power2state(struct thermal_cooling_device *cdev,
 	target_freq = cpu_power_to_freq(cpufreq_cdev, normalised_power);
 
 	*state = get_level(cpufreq_cdev, target_freq);
-	trace_thermal_power_cpu_limit(policy->related_cpus, target_freq, *state,
-				      power);
+	//trace_thermal_power_cpu_limit(policy->related_cpus, target_freq, *state,
+	//			      power);
 	return 0;
 }
 

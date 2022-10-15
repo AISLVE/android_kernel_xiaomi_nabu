@@ -28,7 +28,7 @@
 #include <linux/cpu_cooling.h>
 
 #ifdef CONFIG_DRM
-#include <linux/msm_drm_notify.h>
+#include <drm/drm_notifier.h>
 #endif
 
 #define CREATE_TRACE_POINTS
@@ -325,12 +325,11 @@ static void thermal_zone_device_set_polling(struct workqueue_struct *queue,
 					    int delay)
 {
 	if (delay > 1000)
-		mod_delayed_work(system_freezable_power_efficient_wq,
-				 &tz->poll_queue,
+		mod_delayed_work(queue, &tz->poll_queue,
 				 round_jiffies(msecs_to_jiffies(delay)));
 	else if (delay)
-		mod_delayed_work(system_freezable_power_efficient_wq,
-				 &tz->poll_queue, msecs_to_jiffies(delay));
+		mod_delayed_work(queue, &tz->poll_queue,
+				 msecs_to_jiffies(delay));
 	else
 		cancel_delayed_work(&tz->poll_queue);
 }
@@ -419,7 +418,7 @@ static void handle_critical_trips(struct thermal_zone_device *tz,
 	if (trip_temp <= 0 || tz->temperature < trip_temp)
 		return;
 
-	trace_thermal_zone_trip(tz, trip, trip_type, true);
+	//trace_thermal_zone_trip(tz, trip, trip_type, true);
 
 	if (tz->ops->notify)
 		tz->ops->notify(tz, trip, trip_type);
@@ -461,7 +460,7 @@ static void handle_thermal_trip(struct thermal_zone_device *tz, int trip)
 	 * So, start monitoring again.
 	 */
 	monitor_thermal_zone(tz);
-	trace_thermal_handle_trip(tz, trip);
+	//trace_thermal_handle_trip(tz, trip);
 }
 
 static void store_temperature(struct thermal_zone_device *tz, int temp)
@@ -471,7 +470,7 @@ static void store_temperature(struct thermal_zone_device *tz, int temp)
 	tz->temperature = temp;
 	mutex_unlock(&tz->lock);
 
-	trace_thermal_temperature(tz);
+	//trace_thermal_temperature(tz);
 	if (tz->last_temperature == THERMAL_TEMP_INVALID ||
 		tz->last_temperature == THERMAL_TEMP_INVALID_LOW)
 		dev_dbg(&tz->device, "last_temperature N/A, current_temperature=%d\n",
@@ -519,7 +518,7 @@ void thermal_zone_device_update_temp(struct thermal_zone_device *tz,
 		!(tz->ops->is_wakeable(tz))))
 		return;
 
-	trace_thermal_device_update(tz, event);
+	//trace_thermal_device_update(tz, event);
 	store_temperature(tz, temp);
 
 	thermal_zone_set_trips(tz);
@@ -543,7 +542,7 @@ void thermal_zone_device_update(struct thermal_zone_device *tz,
 	if (!tz->ops->get_temp)
 		return;
 
-	trace_thermal_device_update(tz, event);
+	//trace_thermal_device_update(tz, event);
 	update_temperature(tz);
 
 	thermal_zone_set_trips(tz);
@@ -1616,7 +1615,6 @@ static int thermal_pm_notify(struct notifier_block *nb,
 			     unsigned long mode, void *_unused)
 {
 	struct thermal_zone_device *tz;
-	enum thermal_device_mode tz_mode;
 
 	switch (mode) {
 	case PM_HIBERNATION_PREPARE:
@@ -1629,15 +1627,9 @@ static int thermal_pm_notify(struct notifier_block *nb,
 	case PM_POST_SUSPEND:
 		atomic_set(&in_suspend, 0);
 		list_for_each_entry(tz, &thermal_tz_list, node) {
-			tz_mode = THERMAL_DEVICE_ENABLED;
-			if (tz->ops->get_mode)
-				tz->ops->get_mode(tz, &tz_mode);
-
-			if ((tz->ops->is_wakeable &&
-				tz->ops->is_wakeable(tz)) ||
-				tz_mode == THERMAL_DEVICE_DISABLED)
+			if (tz->ops->is_wakeable &&
+				tz->ops->is_wakeable(tz))
 				continue;
-
 			thermal_zone_device_init(tz);
 			thermal_zone_device_update(tz,
 						   THERMAL_EVENT_UNSPECIFIED);
@@ -1702,7 +1694,7 @@ thermal_boost_store(struct device *dev,
 				      struct device_attribute *attr, const char *buf, size_t len)
 {
 	int ret;
-	ret = snprintf(boost_buf, sizeof(boost_buf), buf);
+	ret = snprintf(boost_buf, PAGE_SIZE, buf);
 	return len;
 }
 
@@ -1785,7 +1777,7 @@ static ssize_t
 thermal_board_sensor_temp_store(struct device *dev,
 				struct device_attribute *attr, const char *buf, size_t len)
 {
-       snprintf(board_sensor_temp, sizeof(board_sensor_temp), buf);
+       snprintf(board_sensor_temp, PAGE_SIZE, buf);
 
        return len;
 }
@@ -1851,21 +1843,23 @@ static void destroy_thermal_message_node(void)
 #ifdef CONFIG_DRM
 static int screen_state_for_thermal_callback(struct notifier_block *nb, unsigned long val, void *data)
 {
-	struct msm_drm_notifier *evdata = data;
+	struct drm_notify_data *evdata = data;
 	unsigned int blank;
 
-	if (val != MSM_DRM_EVENT_BLANK || !evdata || !evdata->data)
+	if (val != DRM_EVENT_BLANK || !evdata || !evdata->data)
 		return 0;
 
 	blank = *(int *)(evdata->data);
 	switch (blank) {
-	case MSM_DRM_BLANK_POWERDOWN:
+	case DRM_BLANK_LP1:
+		pr_warn("%s: DRM_BLANK_LP1\n", __func__);
+	case DRM_BLANK_LP2:
+		pr_warn("%s: DRM_BLANK_LP2\n", __func__);
+	case DRM_BLANK_POWERDOWN:
 		sm.screen_state = 0;
-		pr_warn("%s: MSM_DRM_BLANK_POWERDOWN\n", __func__);
 		break;
-	case MSM_DRM_BLANK_UNBLANK:
+	case DRM_BLANK_UNBLANK:
 		sm.screen_state = 1;
-		pr_warn("%s: MSM_DRM_BLANK_UNBLANK\n", __func__);
 		break;
 	default:
 		break;
@@ -1934,7 +1928,7 @@ static int __init thermal_init(void)
 
 #ifdef CONFIG_DRM
 	sm.thermal_notifier.notifier_call = screen_state_for_thermal_callback;
-	if (msm_drm_register_client(&sm.thermal_notifier) < 0) {
+	if (drm_register_client(&sm.thermal_notifier) < 0) {
 		pr_warn("Thermal: register screen state callback failed\n");
 	}
 #endif
@@ -1959,7 +1953,7 @@ error:
 static void thermal_exit(void)
 {
 #ifdef CONFIG_DRM
-	msm_drm_unregister_client(&sm.thermal_notifier);
+	drm_unregister_client(&sm.thermal_notifier);
 #endif
 	unregister_pm_notifier(&thermal_pm_nb);
 	of_thermal_destroy_zones();
