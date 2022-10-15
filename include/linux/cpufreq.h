@@ -431,6 +431,9 @@ static inline void cpufreq_resume(void) {}
 #define CPUFREQ_ADJUST			(0)
 #define CPUFREQ_NOTIFY			(1)
 #define CPUFREQ_INCOMPATIBLE	(6)
+/* Policy Notifiers  */
+#define CPUFREQ_START			(2)
+#define CPUFREQ_STOP			(5)
 #define CPUFREQ_THERMAL			(2)
 
 #ifdef CONFIG_CPU_FREQ

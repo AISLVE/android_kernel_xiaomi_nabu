@@ -934,6 +934,20 @@ static struct schedtune *getSchedtune(char *st_name)
 	return NULL;
 }
 
+static int dynamic_boost(struct schedtune *st, int boost)
+{
+	int ret;
+	/* Backup boost_default */
+	int boost_default_backup = st->boost_default;
+
+	ret = boost_write(&st->css, NULL, boost);
+
+	/* Restore boost_default */
+	st->boost_default = boost_default_backup;
+
+	return ret;
+}
+
 static int dynamic_boost_write(struct schedtune *st, int boost)
 {
 	int ret;
