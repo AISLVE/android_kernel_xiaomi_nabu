@@ -1300,12 +1300,12 @@ static inline int ufshcd_dme_peer_st_set(struct ufs_hba *hba, u32 attr_sel,
 				   mib_val, DME_PEER);
 }
 
-static inline unsigned int ufshcd_vops_get_user_cap_mode(struct ufs_hba *hba)
+/*static inline unsigned int ufshcd_vops_get_user_cap_mode(struct ufs_hba *hba)
 {
 	if (hba->var && hba->var->vops->get_user_cap_mode)
 		return hba->var->vops->get_user_cap_mode(hba);
 	return 0;
-}
+}*/
 
 static inline int ufshcd_dme_get(struct ufs_hba *hba,
 				 u32 attr_sel, u32 *mib_val)

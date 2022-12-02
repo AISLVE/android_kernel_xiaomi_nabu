@@ -629,6 +629,8 @@ struct request_queue {
 	bool			turbo_write_dev;
 #endif
 #endif
+	atomic64_t		io_stime;
+	atomic64_t		io_wtime;
 };
 
 #define QUEUE_FLAG_QUEUED	0	/* uses generic tag queueing */
