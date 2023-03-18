@@ -30,7 +30,6 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_mode.h>
 #include <drm/drm_print.h>
-#include <drm/drm_writeback.h>
 #include <linux/devfreq_boost.h>
 #include <linux/sync_file.h>
 
@@ -2260,7 +2259,15 @@ int drm_mode_atomic_ioctl(struct drm_device *dev,
 	    devfreq_boost_kick_max(DEVFREQ_MSM_CPUBW, 25);
 	  }
 
-	drm_modeset_acquire_init(&ctx, DRM_MODESET_ACQUIRE_INTERRUPTIBLE);
+	/*state = drm_atomic_state_alloc(dev);
+	if (!state)
+		return -ENOMEM;
+
+	state->acquire_ctx = &ctx;
+	state->allow_modeset = !!(arg->flags & DRM_MODE_ATOMIC_ALLOW_MODESET);*/
+
+	
+	drm_modeset_acquire_init(&ctx, 0);
 
 	state = drm_atomic_state_alloc(dev);
 	if (!state)
