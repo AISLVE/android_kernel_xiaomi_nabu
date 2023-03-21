@@ -3,7 +3,8 @@
  *
  * This code is based on drivers/scsi/ufs/ufshcd.c
  * Copyright (C) 2011-2013 Samsung India Software Operations
- * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
+ * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
  *
  * Authors:
  *	Santosh Yaraganavi <santosh.sy@samsung.com>
@@ -346,7 +347,7 @@ enum {
 #define ufshcd_is_ufs_dev_poweroff(h) \
 	((h)->curr_dev_pwr_mode == UFS_POWERDOWN_PWR_MODE)
 
-static struct ufs_pm_lvl_states ufs_pm_lvl_states[] = {
+struct ufs_pm_lvl_states ufs_pm_lvl_states[] = {
 	{UFS_ACTIVE_PWR_MODE, UIC_LINK_ACTIVE_STATE},
 	{UFS_ACTIVE_PWR_MODE, UIC_LINK_HIBERN8_STATE},
 	{UFS_SLEEP_PWR_MODE, UIC_LINK_ACTIVE_STATE},
@@ -3675,14 +3676,14 @@ static int ufshcd_comp_scsi_upiu(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
  *
  * Returns UPIU LUN id
  */
-static inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)
+/*static inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)
 {
 	if (scsi_is_wlun(scsi_lun))
 		return (scsi_lun & UFS_UPIU_MAX_UNIT_NUM_ID)
 			| UFS_UPIU_WLUN_ID;
 	else
 		return scsi_lun & UFS_UPIU_MAX_UNIT_NUM_ID;
-}
+}*/
 
 /**
  * ufshcd_upiu_wlun_to_scsi_wlun - maps UPIU W-LUN id to SCSI W-LUN ID
@@ -3808,6 +3809,13 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 	int err = 0;
 	bool has_read_lock = false;
 	bool cmd_sent = false;
+#if defined(CONFIG_UFSFEATURE) && defined(CONFIG_UFSHPB)
+	struct scsi_cmnd *pre_cmd;
+	struct ufshcd_lrb *add_lrbp;
+	int add_tag;
+	int pre_req_err = -EBUSY;
+	int lun = ufshcd_scsi_to_upiu_lun(cmd->device->lun);
+#endif
 
 	hba = shost_priv(host);
 
@@ -3915,6 +3923,29 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 	if (ufshcd_is_hibern8_on_idle_allowed(hba))
 		WARN_ON(hba->hibern8_on_idle.state != HIBERN8_EXITED);
 
+#if defined(CONFIG_UFSFEATURE) && defined(CONFIG_UFSHPB)
+	add_tag = ufsf_hpb_prepare_pre_req(&hba->ufsf, cmd, lun);
+	if (add_tag == -EAGAIN) {
+		clear_bit_unlock(tag, &hba->lrb_in_use);
+		err = SCSI_MLQUEUE_HOST_BUSY;
+		ufshcd_release_all(hba);
+		goto out;
+	}
+
+	if (add_tag < 0) {
+		hba->lrb[tag].hpb_ctx_id = MAX_HPB_CONTEXT_ID;
+		goto send_orig_cmd;
+	}
+
+	add_lrbp = &hba->lrb[add_tag];
+
+	pre_req_err = ufsf_hpb_prepare_add_lrbp(&hba->ufsf, add_tag);
+	if (pre_req_err)
+		hba->lrb[tag].hpb_ctx_id = MAX_HPB_CONTEXT_ID;
+send_orig_cmd:
+#endif
+	/* Vote PM QoS for the request */
+	ufshcd_vops_pm_qos_req_start(hba, cmd->request);
 
 	/* IO svc time latency histogram */
 	if (hba != NULL && cmd->request != NULL) {
@@ -4809,7 +4840,7 @@ int ufshcd_read_device_desc(struct ufs_hba *hba, u8 *buf, u32 size)
  * Return 0 in case of success, non-zero otherwise
  */
 #define ASCII_STD true
-static int ufshcd_read_string_desc(struct ufs_hba *hba, int desc_index,
+int ufshcd_read_string_desc(struct ufs_hba *hba, int desc_index,
 				   u8 *buf, u32 size, bool ascii)
 {
 	int err = 0;
@@ -6712,8 +6743,7 @@ void ufshcd_abort_outstanding_transfer_requests(struct ufs_hba *hba, int result)
 				 * this must be called before calling
 				 * ->scsi_done() callback.
 				 */
-				ufshcd_pm_qos_put(hba);
-                        }
+			}
 			/* Do not touch lrbp after scsi done */
 			cmd->scsi_done(cmd);
 		} else if (lrbp->command_type == UTP_CMD_TYPE_DEV_MANAGE) {
@@ -7034,6 +7064,14 @@ out:
 
 static bool ufshcd_wb_sup(struct ufs_hba *hba)
 {
+#if defined(CONFIG_UFSTW)
+#if defined(CONFIG_UFSFEATURE31)
+	if (is_samsung_ufs(hba))
+		return false;
+#elif defined(CONFIG_UFSFEATURE30)
+	return false;
+#endif
+#endif
 	return ((hba->dev_info.d_ext_ufs_feature_sup &
 		   UFS_DEV_WRITE_BOOSTER_SUP) &&
 		  (hba->dev_info.b_wb_buffer_type
@@ -10541,7 +10579,9 @@ static void ufshcd_vreg_set_lpm(struct ufs_hba *hba)
 		ufshcd_setup_vreg(hba, false);
 	} else if (!ufshcd_is_ufs_dev_active(hba)) {
 		if (!hba->dev_info.keep_vcc_on)
+#if !defined(CONFIG_UFSTW)
 			ufshcd_toggle_vreg(hba->dev, hba->vreg_info.vcc, false);
+#endif
 		if (!ufshcd_is_link_active(hba)) {
 #if !defined(CONFIG_UFSTW)
 			ufshcd_config_vreg_lpm(hba, hba->vreg_info.vccq);
@@ -11538,7 +11578,7 @@ void ufshcd_remove(struct ufs_hba *hba)
 	ufsf_tw_release(&hba->ufsf);
 #endif
 #endif
-	ufs_sysfs_remove_nodes(hba->dev);
+	//sysfs_remove_files(hba->dev);
 	scsi_remove_host(hba->host);
 	/* disable interrupts */
 	ufshcd_disable_intr(hba, hba->intr_mask);

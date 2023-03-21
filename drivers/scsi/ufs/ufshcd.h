@@ -324,6 +324,7 @@ struct ufs_pwr_mode_info {
 	struct ufs_pa_layer_attr info;
 };
 
+
 union ufs_crypto_cfg_entry;
 
 /**
@@ -415,6 +416,7 @@ struct ufs_hba_variant {
 	struct device				*dev;
 	const char				*name;
 	struct ufs_hba_variant_ops		*vops;
+	struct ufs_hba_pm_qos_variant_ops	*pm_qos_vops;
 };
 
 struct keyslot_mgmt_ll_ops;
@@ -1111,6 +1113,7 @@ struct ufs_hba {
 	void *crypto_DO_NOT_USE[8];
 #endif /* CONFIG_SCSI_UFS_CRYPTO */
 
+        bool wb_enabled;
 	struct {
 		struct pm_qos_request req;
 		struct work_struct get_work;
@@ -1296,6 +1299,13 @@ static inline int ufshcd_dme_peer_st_set(struct ufs_hba *hba, u32 attr_sel,
 	return ufshcd_dme_set_attr(hba, attr_sel, ATTR_SET_ST,
 				   mib_val, DME_PEER);
 }
+
+/*static inline unsigned int ufshcd_vops_get_user_cap_mode(struct ufs_hba *hba)
+{
+	if (hba->var && hba->var->vops->get_user_cap_mode)
+		return hba->var->vops->get_user_cap_mode(hba);
+	return 0;
+}*/
 
 static inline int ufshcd_dme_get(struct ufs_hba *hba,
 				 u32 attr_sel, u32 *mib_val)
@@ -1578,5 +1588,44 @@ static inline void ufshcd_vops_remove_debugfs(struct ufs_hba *hba)
 {
 }
 #endif
+
+static inline unsigned int ufshcd_vops_get_user_cap_mode(struct ufs_hba *hba)
+{
+	if (hba->var && hba->var->vops->get_user_cap_mode)
+		return hba->var->vops->get_user_cap_mode(hba);
+	return 0;
+}
+
+static inline void ufshcd_vops_pm_qos_req_start(struct ufs_hba *hba,
+		struct request *req)
+{
+	if (hba->var && hba->var->pm_qos_vops &&
+		hba->var->pm_qos_vops->req_start)
+		hba->var->pm_qos_vops->req_start(hba, req);
+}
+
+static inline void ufshcd_vops_pm_qos_req_end(struct ufs_hba *hba,
+		struct request *req, bool lock)
+{
+	if (hba->var && hba->var->pm_qos_vops && hba->var->pm_qos_vops->req_end)
+		hba->var->pm_qos_vops->req_end(hba, req, lock);
+}
+
+extern struct ufs_pm_lvl_states ufs_pm_lvl_states[];
+
+/*
+ * ufshcd_scsi_to_upiu_lun - maps scsi LUN to UPIU LUN
+ * @scsi_lun: scsi LUN id
+ *
+ * Returns UPIU LUN id
+ */
+static inline u8 ufshcd_scsi_to_upiu_lun(unsigned int scsi_lun)
+{
+	if (scsi_is_wlun(scsi_lun))
+		return (scsi_lun & UFS_UPIU_MAX_UNIT_NUM_ID)
+			| UFS_UPIU_WLUN_ID;
+	else
+		return scsi_lun & UFS_UPIU_MAX_UNIT_NUM_ID;
+}
 
 #endif /* End of Header */
