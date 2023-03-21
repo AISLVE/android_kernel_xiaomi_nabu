@@ -227,6 +227,10 @@ int fscrypt_has_permitted_context(struct inode *parent, struct inode *child);
 int fscrypt_inherit_context(struct inode *parent, struct inode *child,
 			    void *fs_data, bool preload);
 
+extern int fscrypt_ioctl_decrypt_filename(struct file *, struct encrypt_fname *);
+extern int fscrypt_ioctl_decrypt_filename_v1(struct file *, void __user *);
+extern int fscrypt_ioctl_decrypt_filename_v2(struct file *, void __user *);
+
 struct fscrypt_dummy_context {
 	const union fscrypt_context *ctx;
 };
