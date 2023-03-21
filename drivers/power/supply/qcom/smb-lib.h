@@ -246,36 +246,62 @@ struct smb_charger {
 	struct smb_params	param;
 	struct smb_iio		iio;
 	int			*debug_mask;
-	int			*try_sink_enabled;
-	int			*audio_headset_drp_wait_ms;
+	int			*pd_disabled;
 	enum smb_mode		mode;
 	struct smb_chg_freq	chg_freq;
-	struct charger_param    chg_param;
 	int			otg_delay_ms;
 	int			*weak_chg_icl_ua;
+	bool			pd_not_supported;
+	bool			init_once;
+	bool			support_liquid;
+	bool			dynamic_fv_enabled;
+	bool			batt_verified;
 
 	/* locks */
-	struct mutex		lock;
-	struct mutex		write_lock;
+	struct mutex		smb_lock;
 	struct mutex		ps_change_lock;
-	struct mutex		otg_oc_lock;
-	struct mutex		vconn_oc_lock;
+	struct mutex		dr_lock;
+	struct mutex		irq_status_lock;
+	struct mutex		adc_lock;
+	spinlock_t		typec_pr_lock;
+	struct mutex		dcin_aicl_lock;
+	struct mutex		dpdm_lock;
 
 	/* power supplies */
 	struct power_supply		*batt_psy;
 	struct power_supply		*usb_psy;
 	struct power_supply		*dc_psy;
 	struct power_supply		*bms_psy;
-	struct power_supply_desc	usb_psy_desc;
+	struct power_supply_desc		usb_psy_desc;
 	struct power_supply		*usb_main_psy;
 	struct power_supply		*usb_port_psy;
+	struct power_supply		*wls_psy;
+	struct power_supply		*idtp_psy;
+	struct power_supply		*wip_psy;
+	struct power_supply		*wireless_psy;
+	struct power_supply		*wls_chip_psy;
+	struct power_supply		*cp_psy;
+	struct power_supply		*ln_psy;
+	struct power_supply		*halo_psy;
+	struct power_supply		*cp_chip_psy;
+#if (defined CONFIG_BATT_VERIFY_BY_DS28E16 || defined CONFIG_BATT_VERIFY_BY_DS28E16_NABU)
+	struct power_supply		*batt_verify_psy;
+#endif
 	enum power_supply_type		real_charger_type;
+	enum power_supply_type          wireless_charger_type;
+
+	/* dual role class */
+	struct dual_role_phy_instance	*dual_role;
 
 	/* notifiers */
 	struct notifier_block	nb;
 
 	/* parallel charging */
 	struct parallel_params	pl;
+
+	/* CC Mode */
+	int	adapter_cc_mode;
+	int	thermal_overheat;
 
 	/* regulators */
 	struct smb_regulator	*vbus_vreg;
@@ -285,91 +311,222 @@ struct smb_charger {
 	/* votables */
 	struct votable		*dc_suspend_votable;
 	struct votable		*fcc_votable;
+	struct votable		*fcc_main_votable;
 	struct votable		*fv_votable;
 	struct votable		*usb_icl_votable;
 	struct votable		*dc_icl_votable;
-	struct votable		*pd_disallowed_votable_indirect;
-	struct votable		*pd_allowed_votable;
 	struct votable		*awake_votable;
 	struct votable		*pl_disable_votable;
 	struct votable		*chg_disable_votable;
 	struct votable		*pl_enable_votable_indirect;
-	struct votable		*hvdcp_disable_votable_indirect;
-	struct votable		*hvdcp_enable_votable;
-	struct votable		*apsd_disable_votable;
-	struct votable		*hvdcp_hw_inov_dis_votable;
-	struct votable		*usb_irq_enable_votable;
-	struct votable		*typec_irq_disable_votable;
-	struct votable		*disable_power_role_switch;
+	struct votable		*cp_disable_votable;
+	struct votable		*smb_override_votable;
+	struct votable		*icl_irq_disable_votable;
+	struct votable		*limited_irq_disable_votable;
+	struct votable		*hdc_irq_disable_votable;
+	struct votable          *cp_ilim_votable;
+	struct votable		*temp_change_irq_disable_votable;
 
 	/* work */
 	struct work_struct	bms_update_work;
 	struct work_struct	pl_update_work;
-	struct work_struct	rdstd_cc2_detach_work;
-	struct delayed_work	hvdcp_detect_work;
+	struct work_struct	jeita_update_work;
+	struct work_struct	moisture_protection_work;
+	struct work_struct	chg_termination_work;
+	struct work_struct	dcin_aicl_work;
+	struct work_struct	lpd_disable_chg_work;
 	struct delayed_work	ps_change_timeout_work;
 	struct delayed_work	clear_hdc_work;
-	struct work_struct	otg_oc_work;
-	struct work_struct	vconn_oc_work;
-	struct delayed_work	otg_ss_done_work;
 	struct delayed_work	icl_change_work;
 	struct delayed_work	pl_enable_work;
-	struct work_struct	legacy_detection_work;
 	struct delayed_work	uusb_otg_work;
 	struct delayed_work	bb_removal_work;
+	struct delayed_work	batt_verify_update_work;
+	struct delayed_work	raise_qc3_vbus_work;
+	struct delayed_work	lpd_ra_open_work;
+	struct delayed_work	lpd_detach_work;
+	struct delayed_work	charger_type_recheck;
+	struct delayed_work	cc_un_compliant_charge_work;
+	struct delayed_work	reg_work;
+	struct delayed_work	thermal_regulation_work;
+	struct delayed_work	conn_therm_work;
+	struct delayed_work	after_ffc_chg_dis_work;
+	struct delayed_work	after_ffc_chg_en_work;
+	struct delayed_work	dc_plug_out_delay_work;
+	struct delayed_work	report_soc_decimal_work;
+	struct delayed_work	usbov_dbc_work;
+	struct delayed_work	role_reversal_check;
+	struct delayed_work	pr_swap_detach_work;
+	struct delayed_work	pr_lock_clear_work;
 
-	/* cached status */
+	struct delayed_work	check_vbus_work;
+	struct delayed_work     check_init_boot;
+	struct delayed_work	early_attach;
+	struct delayed_work	six_pin_batt_step_chg_work;
+	struct delayed_work	reduce_fcc_work;
+	struct delayed_work	thermal_setting_work;
+	struct delayed_work	check_vbat_work;
+	struct alarm		lpd_recheck_timer;
+	struct alarm		moisture_protection_alarm;
+	struct alarm		chg_termination_alarm;
+	struct alarm		dcin_aicl_alarm;
+
+	struct timer_list	apsd_timer;
+
+	struct charger_param	chg_param;
+	/* secondary charger config */
+	bool			sec_pl_present;
+	bool			sec_cp_present;
+	int			sec_chg_selected;
+	int			cp_reason;
+	int			cp_mode;
+	int			cp_fcc;
+	int			cp_main_fcc;
+
+	/* pd */
 	int			voltage_min_uv;
 	int			voltage_max_uv;
 	int			pd_active;
+	int			apdo_max;
+	int			pd_verifed;
+	bool			pd_hard_reset;
+	bool			pr_lock_in_progress;
+	bool			pr_swap_in_progress;
+	bool			early_usb_attach;
+	bool			early_dc_attach;
+	bool			batt_temp_irq_enabled;
+	bool			ok_to_pd;
+	bool			typec_legacy;
+	bool			typec_irq_en;
+	bool			typec_role_swap_failed;
+
+	/* cached status */
 	bool			system_suspend_supported;
 	int			boost_threshold_ua;
 	int			system_temp_level;
+	int			pps_thermal_level;
 	int			thermal_levels;
+	int			lpd_levels;
+	int			dc_temp_level;
+	int			dc_thermal_levels;
+#ifdef CONFIG_THERMAL
+	int 		*thermal_mitigation_dcp;
+	int 		*thermal_mitigation_qc2;
+	int 		*thermal_mitigation_pd_base;
+	int 		*thermal_mitigation_icl;
+	int 		*thermal_fcc_qc3_normal;
+	int 		*thermal_fcc_qc3_cp;
+	int 		*thermal_fcc_qc3_classb_cp;
+	int 		*thermal_fcc_pps_cp;
+	int 		*thermal_mitigation_dc;
+	int		*thermal_mitigation_voice;
+	int 		*lpd_hwversion;
+	int 		*thermal_mitigation_epp;
+	int 		*thermal_mitigation_bpp_qc3;
+	int 		*thermal_mitigation_bpp_qc2;
+	int 		*thermal_mitigation_bpp;
+	int 		*thermal_mitigation_dc_20W;
+#else
 	int			*thermal_mitigation;
+#endif
 	int			dcp_icl_ua;
 	int			fake_capacity;
 	int			fake_batt_status;
+	int			fake_conn_temp;
 	bool			step_chg_enabled;
 	bool			sw_jeita_enabled;
+	bool			typec_legacy_use_rp_icl;
+	bool			lpd_enabled;
 	bool			is_hdc;
 	bool			chg_done;
-	bool			connector_type;
+	int			connector_type;
 	bool			otg_en;
-	bool			vconn_en;
 	bool			suspend_input_on_debug_batt;
-	int			otg_attempts;
-	int			vconn_attempts;
+	bool			fake_chg_status_on_debug_batt;
 	int			default_icl_ua;
 	int			otg_cl_ua;
 	bool			uusb_apsd_rerun_done;
-	bool			pd_hard_reset;
 	bool			typec_present;
-	u8			typec_status[5];
-	bool			typec_legacy_valid;
 	int			fake_input_current_limited;
-	bool			pr_swap_in_progress;
 	int			typec_mode;
 	int			usb_icl_change_irq_enabled;
 	u32			jeita_status;
 	u8			float_cfg;
+	bool			jeita_arb_flag;
 	bool			use_extcon;
 	bool			otg_present;
-	bool			disable_stat_sw_override;
+	bool			hvdcp_disable;
+	int			hw_max_icl_ua;
+	int			auto_recharge_soc;
+	int			auto_recharge_vbat;
+	enum sink_src_mode	sink_src_mode;
+	enum power_supply_typec_power_role power_role;
+	enum jeita_cfg_stat	jeita_configured;
+	int			charger_temp_max;
+	int			smb_temp_max;
+	u8			typec_try_mode;
+	enum lpd_stage		lpd_stage;
+	bool			lpd_disabled;
+	enum lpd_reason		lpd_reason;
+	bool			lpd_status;
 	bool			fcc_stepper_enable;
-	bool			ufp_only_mode;
-	bool			is_audio_adapter;
+	int			die_temp;
+	int			smb_temp;
+	int			skin_temp;
+	int			connector_temp;
+	u64			entry_time;
+	int			thermal_status;
+	int			main_fcc_max;
+	bool			report_usb_absent;
+	u32			jeita_soft_thlds[2];
+	u32			jeita_soft_hys_thlds[2];
+	int			jeita_soft_fcc[2];
+	int			jeita_soft_fv[2];
+	bool			moisture_present;
+	bool			uusb_moisture_protection_enabled;
+	bool			hw_die_temp_mitigation;
+	bool			hw_connector_mitigation;
+	bool			hw_skin_temp_mitigation;
+	bool			en_skin_therm_mitigation;
+	int			connector_pull_up;
+	int			smb_pull_up;
+	int			aicl_5v_threshold_mv;
+	int			default_aicl_5v_threshold_mv;
+	int			aicl_cont_threshold_mv;
+	int			default_aicl_cont_threshold_mv;
+	bool			aicl_max_reached;
+	int			charge_full_cc;
+	int			cc_soc_ref;
+	int			last_cc_soc;
+	int			dr_mode;
+	int			term_vbat_uv;
+	int			usbin_forced_max_uv;
+	int			init_thermal_ua;
+	u32			comp_clamp_level;
+	bool			hvdcp3_standalone_config;
+	int			wls_icl_ua;
+	bool			dpdm_enabled;
+	bool			apsd_ext_timeout;
+	bool			qc3p5_detected;
+	int			vbus_disable;
+	bool			en_bq_flag;
+	int64_t			rpp;
+	int64_t			cep;
+	int64_t			tx_bt_mac;
+	int64_t			pen_bt_mac;
+	int			reverse_chg_state;
+	int			reverse_gpio_state;
 
 	/* workaround flag */
 	u32			wa_flags;
-	bool			cc2_detach_wa_active;
-	bool			typec_en_dis_active;
-	bool			try_sink_active;
 	int			boost_current_ua;
-	int			temp_speed_reading_count;
-	int			qc2_max_pulses;
-	bool			non_compliant_chg_detected;
-	bool			reddragon_ipc_wa;
+	int                     qc2_max_pulses;
+	enum qc2_non_comp_voltage qc2_unsupported_voltage;
+	bool			dbc_usbov;
+	bool			fake_usb_insertion;
+	bool			qc2_unsupported;
+	bool			check_vbus_once;
+	bool			unstandard_hvdcp;
 
 	/* extcon for VBUS / ID notification to USB for uUSB */
 	struct extcon_dev	*extcon;
@@ -378,11 +535,100 @@ struct smb_charger {
 	int			batt_profile_fcc_ua;
 	int			batt_profile_fv_uv;
 
-	/* qnovo */
 	int			usb_icl_delta_ua;
 	int			pulse_cnt;
 
 	int			die_health;
+	int			connector_health;
+	/* raise qc3 vbus flag */
+	bool			qc_class_ab;
+	bool			is_qc_class_a;
+	bool			is_qc_class_b;
+	bool			raise_vbus_to_detect;
+	bool			detect_low_power_qc3_charger;
+	bool			high_vbus_detected;
+
+	/* flash */
+	u32			flash_derating_soc;
+	u32			flash_disable_soc;
+	u32			headroom_mode;
+	bool			flash_init_done;
+	bool			flash_active;
+	u32			irq_status;
+
+	/* wireless */
+	int			dcin_uv_count;
+	ktime_t			dcin_uv_last_time;
+	int			last_wls_vout;
+	int			wireless_vout;
+	int			flag_dc_present;
+	int			flag_cp_en;
+	int			power_good_en;
+	int			fake_dc_on;
+	int			fake_dc_flag;
+	int			last_batt_stat;
+	int			last_vout_set;
+	/* charger type recheck */
+	int			recheck_charger;
+	int			precheck_charger_type;
+	/* workarounds */
+	bool			cc_un_compliant_detected;
+	bool			snk_debug_acc_detected;
+	bool			support_wireless;
+	bool			wireless_bq;
+	bool			support_conn_therm;
+	bool			ext_fg;
+	int			conn_detect_count;
+	int			vbus_disable_gpio;
+	int			remove_comp;
+	u64			last_ffc_remove_time;
+
+	/* used for bq charge pump solution */
+	struct usbpd		*pd;
+	bool			use_bq_pump;
+
+	/* reduce fcc for esr cal*/
+	int			esr_work_status;
+	bool			cp_charge_enabled;
+	int			charge_type;
+	int			charge_status;
+	int			batt_health;
+
+	bool			override_ffc_term_current;
+	/* for 27W charge*/
+	bool			temp_27W_enable;
+
+	/* used for 6pin new battery step charge */
+	bool			six_pin_step_charge_enable;
+	bool			init_start_vbat_checked;
+	struct six_pin_step_data			six_pin_step_cfg[MAX_STEP_ENTRIES];
+	u32			start_step_vbat;
+	int			trigger_taper_count;
+	int			index_vfloat;
+
+	/* fast full charge related */
+	int			chg_term_current_thresh_hi_from_dts;
+	bool			support_ffc;
+	int			ffc_low_tbat;
+	int			ffc_high_tbat;
+	bool			slowly_charging;
+	bool			already_start_step_charge_work;
+	bool			bq_input_suspend;
+
+	bool			hvdcp_recheck_status;
+
+	/* QC3P5 related */
+	bool			qc3p5_supported;
+	bool			qc3p5_auth_complete;
+	bool			qc3p5_authenticated;
+	bool			qc3p5_authentication_started;
+	bool			qc3p5_dp_tune_rapidly;
+	int 			qc3p5_power_limit_w;
+
+	bool			pps_fcc_therm_work_disabled;
+	int			wls_cp_vin;
+	int64_t oob_rpp_msg_cnt;
+	int64_t oob_cep_msg_cnt;
 };
 
 int smblib_read(struct smb_charger *chg, u16 addr, u8 *val);
