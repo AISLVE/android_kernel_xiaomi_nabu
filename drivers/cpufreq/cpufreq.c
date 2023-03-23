@@ -2024,12 +2024,13 @@ int __cpufreq_driver_target(struct cpufreq_policy *policy,
 
 	retval = __target_index(policy, index);
 
-	if (likely(retval != -EINVAL)) {
+	/*if (likely(retval != -EINVAL)) {
 		if (target_freq == policy->max)
 			cpu_nonscaling(policy->cpu);
 		else if (policy->restore_freq == policy->max)
 			cpu_scaling(policy->cpu);
-	}
+	}*/
+
 	return retval;
 }
 EXPORT_SYMBOL_GPL(__cpufreq_driver_target);
