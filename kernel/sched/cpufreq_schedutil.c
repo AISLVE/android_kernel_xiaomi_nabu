@@ -305,9 +305,6 @@ EXPORT_SYMBOL(sched_load_usf);
 
 static void sugov_get_util(unsigned long *util, unsigned long *max, int cpu)
 {
-#ifdef CONFIG_SCHED_PDS
-	*util = *max = arch_scale_cpu_capacity(NULL, cpu);
-#else
 	struct rq *rq = cpu_rq(cpu);
 	unsigned long cfs_max;
 	struct sugov_cpu *loadcpu = &per_cpu(sugov_cpu, cpu);
@@ -316,7 +313,8 @@ static void sugov_get_util(unsigned long *util, unsigned long *max, int cpu)
 
 	*util = min(rq->cfs.avg.util_avg, cfs_max);
 	*max = cfs_max;
-#endif
+
+	*util = boosted_cpu_util(cpu, &loadcpu->walt_load);
 }
 
 static void sugov_set_iowait_boost(struct sugov_cpu *sg_cpu, u64 time,
