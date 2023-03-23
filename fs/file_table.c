@@ -283,6 +283,7 @@ over:
 	}
 	return ERR_PTR(-ENFILE);
 }
+EXPORT_SYMBOL_GPL(get_empty_filp);
 
 /**
  * alloc_file - allocate and initialize a 'struct file'
@@ -394,6 +395,7 @@ void flush_delayed_fput(void)
 {
 	delayed_fput(NULL);
 }
+EXPORT_SYMBOL_GPL(flush_delayed_fput);
 
 static DECLARE_DELAYED_WORK(delayed_fput_work, delayed_fput);
 
@@ -442,6 +444,7 @@ void __fput_sync(struct file *file)
 }
 
 EXPORT_SYMBOL(fput);
+EXPORT_SYMBOL_GPL(__fput_sync);
 
 void put_filp(struct file *file)
 {
@@ -450,6 +453,7 @@ void put_filp(struct file *file)
 		file_free(file);
 	}
 }
+EXPORT_SYMBOL_GPL(put_filp);
 
 void __init files_init(void)
 {

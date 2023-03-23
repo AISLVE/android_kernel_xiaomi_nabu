@@ -252,10 +252,9 @@ int scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
 	struct scsi_request *rq;
 	int ret = DRIVER_ERROR << 24;
 
-	req = blk_get_request(sdev->request_queue,
-			      (data_direction == DMA_TO_DEVICE ?
-			       REQ_OP_SCSI_OUT : REQ_OP_SCSI_IN) | REQ_PREEMPT,
-			      __GFP_RECLAIM);
+	req = blk_get_request_flags(sdev->request_queue,
+			data_direction == DMA_TO_DEVICE ?
+			REQ_OP_SCSI_OUT : REQ_OP_SCSI_IN, BLK_MQ_REQ_PREEMPT);
 	if (IS_ERR(req))
 		return ret;
 	rq = scsi_req(req);
@@ -2997,37 +2996,37 @@ static void scsi_wait_for_queuecommand(struct scsi_device *sdev)
 int
 scsi_device_quiesce(struct scsi_device *sdev)
 {
+	struct request_queue *q = sdev->request_queue;
 	int err;
 
 	/*
-	 * Simply quiesing SCSI device isn't safe, it is easy
-	 * to use up requests because all these allocated requests
-	 * can't be dispatched when device is put in QIUESCE.
-	 * Then no request can be allocated and we may hang
-	 * somewhere, such as system suspend/resume.
-	 *
-	 * So we set block queue in preempt only first, no new
-	 * normal request can enter queue any more, and all pending
-	 * requests are drained once blk_set_preempt_only()
-	 * returns. Only RQF_PREEMPT is allowed in preempt only mode.
+	 * It is allowed to call scsi_device_quiesce() multiple times from
+	 * the same context but concurrent scsi_device_quiesce() calls are
+	 * not allowed.
 	 */
-	blk_set_preempt_only(sdev->request_queue, true);
+	WARN_ON_ONCE(sdev->quiesced_by && sdev->quiesced_by != current);
+
+	blk_set_preempt_only(q);
+
+	blk_mq_freeze_queue(q);
+	/*
+	 * Ensure that the effect of blk_set_preempt_only() will be visible
+	 * for percpu_ref_tryget() callers that occur after the queue
+	 * unfreeze even if the queue was already frozen before this function
+	 * was called. See also https://lwn.net/Articles/573497/.
+	 */
+	synchronize_rcu();
+	blk_mq_unfreeze_queue(q);
 
 	mutex_lock(&sdev->state_mutex);
 	err = scsi_device_set_state(sdev, SDEV_QUIESCE);
+	if (err == 0)
+		sdev->quiesced_by = current;
+	else
+		blk_clear_preempt_only(q);
 	mutex_unlock(&sdev->state_mutex);
 
-	if (err) {
-		blk_set_preempt_only(sdev->request_queue, false);
-		return err;
-	}
-
-	scsi_run_queue(sdev->request_queue);
-	while (atomic_read(&sdev->device_busy)) {
-		msleep_interruptible(200);
-		scsi_run_queue(sdev->request_queue);
-	}
-	return 0;
+	return err;
 }
 EXPORT_SYMBOL(scsi_device_quiesce);
 
@@ -3047,9 +3046,11 @@ void scsi_device_resume(struct scsi_device *sdev)
 	 * device deleted during suspend)
 	 */
 	mutex_lock(&sdev->state_mutex);
-	if (sdev->sdev_state == SDEV_QUIESCE &&
-	    scsi_device_set_state(sdev, SDEV_RUNNING) == 0)
-		scsi_run_queue(sdev->request_queue);
+	WARN_ON_ONCE(!sdev->quiesced_by);
+	sdev->quiesced_by = NULL;
+	blk_clear_preempt_only(sdev->request_queue);
+	if (sdev->sdev_state == SDEV_QUIESCE)
+		scsi_device_set_state(sdev, SDEV_RUNNING);
 	mutex_unlock(&sdev->state_mutex);
 
 	blk_set_preempt_only(sdev->request_queue, false);
