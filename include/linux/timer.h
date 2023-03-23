@@ -8,6 +8,16 @@
 #include <linux/debugobjects.h>
 #include <linux/stringify.h>
 
+#define TIMER_CPUMASK		0x0003FFFF
+#define TIMER_MIGRATING		0x00040000
+#define TIMER_BASEMASK		(TIMER_CPUMASK | TIMER_MIGRATING)
+#define TIMER_DEFERRABLE	0x00080000
+#define TIMER_PINNED		0x00100000
+#define TIMER_IRQSAFE		0x00200000
+#define TIMER_ARRAYSHIFT	22
+#define TIMER_ARRAYMASK		0xFFC00000
+
+
 struct tvec_base;
 
 struct timer_list {
@@ -207,6 +217,15 @@ static inline void timer_setup(struct timer_list *timer,
 		      (TIMER_DATA_TYPE)timer, flags);
 }
 #endif
+
+
+static inline void timer_setup_on_stack(struct timer_list *timer,
+			       void (*callback)(struct timer_list *),
+			       unsigned int flags)
+{
+	__setup_timer_on_stack(timer, (TIMER_FUNC_TYPE)callback,
+			       (TIMER_DATA_TYPE)timer, flags);
+}
 
 #define from_timer(var, callback_timer, timer_fieldname) \
 	container_of(callback_timer, typeof(*var), timer_fieldname)
