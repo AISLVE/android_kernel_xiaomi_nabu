@@ -146,6 +146,7 @@ bool blk_freeze_queue_start(struct request_queue *q)
 		percpu_ref_kill(&q->q_usage_counter);
 		if (q->mq_ops)
 			blk_mq_run_hw_queues(q, false);
+		return true;
 	}
 	return false;
 }
@@ -313,8 +314,6 @@ static struct request *blk_mq_rq_ctx_init(struct blk_mq_alloc_data *data,
 	rq->q = data->q;
 	rq->mq_ctx = data->ctx;
 	rq->cmd_flags = op;
-	if (data->flags & BLK_MQ_REQ_PREEMPT)
-		rq->rq_flags |= RQF_PREEMPT;
 	if (blk_queue_io_stat(data->q))
 		rq->rq_flags |= RQF_IO_STAT;
 	/* do not touch atomic flags, it needs atomic ops against the timer */
@@ -403,13 +402,14 @@ static struct request *blk_mq_get_request(struct request_queue *q,
 }
 
 struct request *blk_mq_alloc_request(struct request_queue *q, unsigned int op,
-		blk_mq_req_flags_t flags)
+		unsigned int flags)
 {
 	struct blk_mq_alloc_data alloc_data = { .flags = flags };
 	struct request *rq;
 	int ret;
 
-	ret = blk_queue_enter(q, flags);
+	ret = blk_queue_enter(q, !(flags & BLK_MQ_REQ_NOWAIT) ? op :
+			op | REQ_NOWAIT);
 	if (ret)
 		return ERR_PTR(ret);
 
@@ -429,7 +429,7 @@ struct request *blk_mq_alloc_request(struct request_queue *q, unsigned int op,
 EXPORT_SYMBOL(blk_mq_alloc_request);
 
 struct request *blk_mq_alloc_request_hctx(struct request_queue *q,
-	unsigned int op, blk_mq_req_flags_t flags, unsigned int hctx_idx)
+		unsigned int op, unsigned int flags, unsigned int hctx_idx)
 {
 	struct blk_mq_alloc_data alloc_data = { .flags = flags };
 	struct request *rq;
@@ -448,7 +448,7 @@ struct request *blk_mq_alloc_request_hctx(struct request_queue *q,
 	if (hctx_idx >= q->nr_hw_queues)
 		return ERR_PTR(-EIO);
 
-	ret = blk_queue_enter(q, flags);
+	ret = blk_queue_enter(q, true);
 	if (ret)
 		return ERR_PTR(ret);
 
