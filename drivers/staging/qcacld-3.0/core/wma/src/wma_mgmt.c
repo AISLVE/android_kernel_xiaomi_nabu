@@ -836,74 +836,6 @@ void wma_set_sta_keep_alive(tp_wma_handle wma, uint8_t vdev_id,
 	wmi_unified_set_sta_keep_alive_cmd(wma->wmi_handle, &params);
 }
 
-void wma_register_install_key_complete_cb(wma_install_key_complete_cb cb)
-{
-	tp_wma_handle wma_handle = cds_get_context(QDF_MODULE_ID_WMA);
-
-	if (!wma_handle) {
-		wma_err("wma handle is NULL");
-		return;
-	}
-
-	wma_handle->install_key_complete_cb = cb;
-}
-
-/**
- * wma_vdev_install_key_complete_event_handler() - install key complete handler
- * @handle: wma handle
- * @event: event data
- * @len: data length
- *
- * This event is sent by fw once WPA/WPA2 keys are installed in fw.
- *
- * Return: 0 for success or error code
- */
-int wma_vdev_install_key_complete_event_handler(void *handle,
-						uint8_t *event,
-						uint32_t len)
-{
-	WMI_VDEV_INSTALL_KEY_COMPLETE_EVENTID_param_tlvs *param_buf = NULL;
-	wmi_vdev_install_key_complete_event_fixed_param *key_fp = NULL;
-	struct wma_install_key_complete_param param;
-	tp_wma_handle wma = (tp_wma_handle)handle;
-
-	if (!event) {
-		WMA_LOGE("%s: event param null", __func__);
-		return -EINVAL;
-	}
-
-	param_buf = (WMI_VDEV_INSTALL_KEY_COMPLETE_EVENTID_param_tlvs *) event;
-	if (!param_buf) {
-		WMA_LOGE("%s: received null buf from target", __func__);
-		return -EINVAL;
-	}
-
-	key_fp = param_buf->fixed_param;
-	if (!key_fp) {
-		WMA_LOGE("%s: received null event data from target", __func__);
-		return -EINVAL;
-	}
-	/*
-	 * Do nothing for now. Completion of set key is already indicated to lim
-	 */
-
-	wma_debug("WMI_VDEV_INSTALL_KEY_COMPLETE_EVENTID");
-	if (wma->install_key_complete_cb) {
-		param.vdev_id = key_fp->vdev_id;
-		WMI_MAC_ADDR_TO_CHAR_ARRAY(&key_fp->peer_macaddr,
-					   param.mac_addr.bytes);
-		param.key_flags = key_fp->key_flags;
-		param.key_ix = key_fp->key_ix;
-		param.status = key_fp->status;
-
-		wma_debug("vdev %d [%pM] ix[%x] flags[%x] status[%d]",
-			  key_fp->vdev_id, param.mac_addr.bytes, param.key_ix,
-			  param.key_flags, param.status);
-		wma->install_key_complete_cb(&param);
-	}
-
-	return 0;
-}
 /*
  * 802.11n D2.0 defined values for "Minimum MPDU Start Spacing":
  *   0 for no restriction
@@ -2121,8 +2053,22 @@ static QDF_STATUS wma_unified_bcn_tmpl_send(tp_wma_handle wma,
 		tmpl_len = *(uint32_t *) &bcn_info->beacon[0];
 	else
 		tmpl_len = bcn_info->beaconLength;
-	if (p2p_ie_len)
+
+	if (tmpl_len > WMI_BEACON_TX_BUFFER_SIZE) {
+		wma_err("tmpl_len: %d > %d. Invalid tmpl len", tmpl_len,
+			WMI_BEACON_TX_BUFFER_SIZE);
+		return -EINVAL;
+	}
+
+	if (p2p_ie_len) {
+		if (tmpl_len <= p2p_ie_len) {
+			wma_err("tmpl_len %d <= p2p_ie_len %d, Invalid",
+				tmpl_len, p2p_ie_len);
+			return -EINVAL;
+		}
 		tmpl_len -= (uint32_t) p2p_ie_len;
+	}
+
 	frm = bcn_info->beacon + bytes_to_strip;
 	tmpl_len_aligned = roundup(tmpl_len, sizeof(A_UINT32));
 	/*
@@ -2384,8 +2330,6 @@ QDF_STATUS wma_set_ap_vdev_up(tp_wma_handle wma, uint8_t vdev_id)
 	status = vdev_mgr_up_send(mlme_obj);
 	if (QDF_IS_STATUS_ERROR(status)) {
 		WMA_LOGE(FL("failed to send vdev up"));
-		policy_mgr_set_do_hw_mode_change_flag(
-			wma->psoc, false);
 		return status;
 	}
 	wma_set_sap_keepalive(wma, vdev_id);
