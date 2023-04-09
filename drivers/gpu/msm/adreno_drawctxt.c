@@ -1,5 +1,4 @@
 /* Copyright (c) 2002,2007-2020, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -53,8 +52,6 @@ void adreno_drawctxt_dump(struct kgsl_device *device,
 {
 	unsigned int queue, start, retire;
 	struct adreno_context *drawctxt = ADRENO_CONTEXT(context);
-	int index, pos;
-	char buf[120];
 
 	kgsl_readtimestamp(device, context, KGSL_TIMESTAMP_QUEUED, &queue);
 	kgsl_readtimestamp(device, context, KGSL_TIMESTAMP_CONSUMED, &start);
@@ -115,25 +112,6 @@ void adreno_drawctxt_dump(struct kgsl_device *device,
 	}
 
 stats:
-	memset(buf, 0, sizeof(buf));
-
-	pos = 0;
-
-	for (index = 0; index < SUBMIT_RETIRE_TICKS_SIZE; index++) {
-		uint64_t msecs;
-		unsigned int usecs;
-
-		if (!drawctxt->submit_retire_ticks[index])
-			continue;
-		msecs = drawctxt->submit_retire_ticks[index] * 10;
-		usecs = do_div(msecs, 192);
-		usecs = do_div(msecs, 1000);
-		pos += snprintf(buf + pos, sizeof(buf) - pos, "%u.%0u ",
-			(unsigned int)msecs, usecs);
-	}
-	dev_err(device->dev, "  context[%u]: submit times: %s\n",
-		context->id, buf);
-
 	spin_unlock_bh(&drawctxt->lock);
 }
 
@@ -489,6 +467,7 @@ void adreno_drawctxt_detach(struct kgsl_context *context)
 	rb = drawctxt->rb;
 
 	spin_lock(&drawctxt->lock);
+
 	spin_lock(&adreno_dev->active_list_lock);
 	list_del_init(&drawctxt->active_node);
 	spin_unlock(&adreno_dev->active_list_lock);
