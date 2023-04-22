@@ -139,6 +139,15 @@ struct kthread_delayed_work {
 	struct timer_list timer;
 };
 
+static inline bool queuing_blocked(struct kthread_worker *worker,
+                                   struct kthread_work *work)
+{
+        lockdep_assert_held(&worker->lock);
+
+        return !list_empty(&work->node) || work->canceling;
+}
+
+
 #define KTHREAD_WORKER_INIT(worker)	{				\
 	.lock = __SPIN_LOCK_UNLOCKED((worker).lock),			\
 	.work_list = LIST_HEAD_INIT((worker).work_list),		\
