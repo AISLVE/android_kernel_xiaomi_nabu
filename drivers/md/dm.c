@@ -1213,7 +1213,7 @@ static void __map_bio(struct dm_target_io *tio)
 		io_wtime = atomic64_read(&tio->clone.bi_disk->queue->io_wtime);
 		atomic64_set(&tio->io->md->queue->io_stime, io_stime);
 		atomic64_set(&tio->io->md->queue->io_wtime, io_wtime);
-	}*//
+	}*/
 
 
 
